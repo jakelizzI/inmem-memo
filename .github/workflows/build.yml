@@ -1,8 +1,10 @@
-name: Build & Release Tauri v2 App
+name: Build & Release
 
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -24,7 +26,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -38,15 +40,15 @@ jobs:
       - name: Install app dependencies
         run: npm install
 
-      - name: Build Tauri App
+      - name: Build Tauri App & Create GitHub Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: v__VERSION__
           releaseName: 'InMem Scratchpad v__VERSION__'
-          releaseBody: 'Automatic build for Windows, macOS, and Linux using Tauri v2.'
-          releaseDraft: true
+          releaseBody: 'Ultra-Fast In-Memory Scratchpad Memo Application for Windows, macOS, and Linux.'
+          releaseDraft: false
           prerelease: false
 
       - name: Upload Artifacts (Direct download from Actions run)
@@ -61,3 +63,28 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: warn
+
+  publish-npm:
+    needs: build-tauri
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for Trusted Publishing / OIDC & Provenance
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Node 22 required for npm Trusted Publishing)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Publish to npm (Trusted Publishing / OIDC & Provenance)
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # Fallback if token is configured, otherwise uses OIDC

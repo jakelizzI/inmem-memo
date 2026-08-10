@@ -1,8 +1,39 @@
 {
   "name": "inmem-memo",
-  "private": true,
   "version": "1.0.0",
+  "description": "Ultra-Fast In-Memory Scratchpad Memo Application for Windows, macOS, and Linux",
   "type": "module",
+  "bin": {
+    "inmem-memo": "bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jakelizzI/InMem_Scratchpad.git"
+  },
+  "homepage": "https://github.com/jakelizzI/InMem_Scratchpad#readme",
+  "bugs": {
+    "url": "https://github.com/jakelizzI/InMem_Scratchpad/issues"
+  },
+  "keywords": [
+    "scratchpad",
+    "memo",
+    "in-memory",
+    "tauri",
+    "react",
+    "desktop-app",
+    "json-formatter",
+    "quick-memo"
+  ],
+  "author": "jakelizzI",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

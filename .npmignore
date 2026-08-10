@@ -1,0 +1,13 @@
+src/
+src-tauri/
+public/
+dist/
+.github/
+node_modules/
+*.png
+*.ico
+*.md
+!README.md
+vite.config.js
+index.html
+imm_icon.png
