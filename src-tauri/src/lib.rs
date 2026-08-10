@@ -139,7 +139,8 @@ fn update_global_shortcut(
 
 #[tauri::command]
 fn exit_app(app: AppHandle) {
-  app.exit(0);
+  app.cleanup_before_exit();
+  std::process::exit(0);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -176,7 +177,8 @@ pub fn run() {
             }
           }
           QUIT_ID => {
-            app.exit(0);
+            app.cleanup_before_exit();
+            std::process::exit(0);
           }
           _ => {}
         })

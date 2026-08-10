@@ -139,6 +139,7 @@ export default function App() {
   // Complete application exit (Rust command exit_app)
   const handleQuitApp = async () => {
     try {
+      window.onbeforeunload = null;
       if (window.__TAURI_INTERNALS__ || window.__TAURI__) {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('exit_app');
