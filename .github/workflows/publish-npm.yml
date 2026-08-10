@@ -16,19 +16,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js (Pure Node without registry-url token config)
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Update npm to latest
+      - name: Update npm to latest (Required for Trusted Publishing v11+)
         run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci || npm install
 
-      - name: Ensure clean .npmrc for OIDC authentication
-        run: rm -f ~/.npmrc .npmrc
-
-      - name: Publish to npm
-        run: npm publish --access public --provenance
+      - name: Publish to npm (Trusted Publishing / OIDC)
+        run: npm publish --access public
