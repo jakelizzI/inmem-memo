@@ -1,4 +1,4 @@
-name: Release
+name: Build & Release Desktop App
 
 on:
   push:
@@ -60,30 +60,3 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: warn
-
-  publish-npm:
-    needs: build-tauri
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write # Required for Trusted Publishing (OIDC)
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Update npm to latest (Required for Trusted Publishing)
-        run: npm install -g npm@latest
-
-      - name: Install dependencies
-        run: npm ci || npm install
-
-      - name: Ensure clean .npmrc for OIDC authentication
-        run: rm -f ~/.npmrc .npmrc
-
-      - name: Publish to npm (Trusted Publishing / OIDC)
-        run: npm publish --access public
