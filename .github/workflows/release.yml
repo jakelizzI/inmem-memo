@@ -42,8 +42,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: 'InMem Scratchpad v__VERSION__'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'InMem Scratchpad ${{ github.ref_name }}'
           releaseBody: 'Ultra-Fast In-Memory Scratchpad Memo Application for Windows, macOS, and Linux.'
           releaseDraft: false
           prerelease: false
@@ -85,5 +85,4 @@ jobs:
 
       - name: Publish to npm (Trusted Publishing / OIDC & Provenance)
         run: |
-          # Publish with graceful handling if the version is already published
           npm publish --access public --provenance || echo "Version already published on npm, skipping."

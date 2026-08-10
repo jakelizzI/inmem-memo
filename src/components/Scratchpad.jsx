@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 export default function Scratchpad({ text, setText, isPreview, tabSize = 2, wordWrap = true }) {
   const textareaRef = useRef(null);
@@ -32,7 +33,9 @@ export default function Scratchpad({ text, setText, isPreview, tabSize = 2, word
 
   const getParsedMarkdown = () => {
     try {
-      return { __html: marked.parse(text || '*No content*') };
+      const rawHtml = marked.parse(text || '*No content*');
+      const cleanHtml = DOMPurify.sanitize(rawHtml);
+      return { __html: cleanHtml };
     } catch (e) {
       return { __html: '<p style="color: var(--accent-rose)">Markdown Parse Error</p>' };
     }
