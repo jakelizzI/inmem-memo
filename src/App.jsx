@@ -262,6 +262,10 @@ export default function App() {
         <RightActionToolbar
           actions={allActions}
           onExecuteAction={handleExecuteAction}
+          onOpenSettings={(tab) => {
+            setInitialSettingsTab(tab || 'actions');
+            setIsSettingsOpen(true);
+          }}
           onOpenSettingsForAction={() => {
             setInitialSettingsTab('actions');
             setIsSettingsOpen(true);
