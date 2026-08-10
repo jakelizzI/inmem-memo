@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Read package.json for version and metadata
+// Read package.json for version and repository
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8')
 );
@@ -19,56 +19,43 @@ const VERSION = packageJson.version;
 const REPO = 'jakelizzI/InMem_Scratchpad';
 const CACHE_DIR = path.join(os.homedir(), '.inmem-memo', `v${VERSION}`);
 
-function getPlatformInfo() {
-  const platform = process.platform;
-  const arch = process.arch;
-
-  if (platform === 'win32') {
-    return {
-      osName: 'windows',
-      fileName: 'inmem-memo.exe',
-      assetName: 'inmem-memo.exe',
-      executable: 'inmem-memo.exe'
-    };
-  } else if (platform === 'darwin') {
-    return {
-      osName: 'macos',
-      fileName: 'inmem-memo',
-      assetName: arch === 'arm64' ? 'inmem-memo_aarch64' : 'inmem-memo_x64',
-      executable: 'inmem-memo'
-    };
-  } else if (platform === 'linux') {
-    return {
-      osName: 'linux',
-      fileName: 'inmem-memo.AppImage',
-      assetName: 'inmem-memo.AppImage',
-      executable: 'inmem-memo.AppImage'
-    };
-  } else {
-    throw new Error(`Unsupported platform: ${platform} (${arch})`);
-  }
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'inmem-memo-cli' } }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchJson(res.headers.location).then(resolve).catch(reject);
+      }
+      if (res.statusCode !== 200) {
+        return reject(new Error(`HTTP ${res.statusCode}`));
+      }
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }).on('error', reject);
+  });
 }
 
 function downloadFile(url, destPath) {
   return new Promise((resolve, reject) => {
-    https.get(url, (response) => {
-      // Handle redirects (GitHub releases 302 redirect to S3/CDN)
+    https.get(url, { headers: { 'User-Agent': 'inmem-memo-cli' } }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         return downloadFile(response.headers.location, destPath).then(resolve).catch(reject);
       }
-
       if (response.statusCode !== 200) {
         return reject(new Error(`Failed to download binary: HTTP ${response.statusCode}`));
       }
-
       const fileStream = fs.createWriteStream(destPath);
       response.pipe(fileStream);
-
       fileStream.on('finish', () => {
         fileStream.close();
         resolve();
       });
-
       fileStream.on('error', (err) => {
         fs.unlink(destPath, () => {});
         reject(err);
@@ -77,48 +64,96 @@ function downloadFile(url, destPath) {
   });
 }
 
+async function getDownloadUrlAndExecutable() {
+  const platform = process.platform;
+  const arch = process.arch;
+
+  // Pattern matchers for release assets
+  let pattern = null;
+  let execName = 'inmem-memo';
+
+  if (platform === 'win32') {
+    pattern = /\.exe$/i;
+    execName = 'inmem-memo-setup.exe';
+  } else if (platform === 'linux') {
+    pattern = /\.AppImage$/i;
+    execName = 'inmem-memo.AppImage';
+  } else if (platform === 'darwin') {
+    pattern = arch === 'arm64' ? /aarch64\.dmg$/i : /x64\.dmg$/i;
+    execName = 'inmem-memo.dmg';
+  } else {
+    throw new Error(`Unsupported platform: ${platform} (${arch})`);
+  }
+
+  // Query GitHub release assets dynamically
+  const releaseApiUrl = `https://api.github.com/repos/${REPO}/releases/tags/v${VERSION}`;
+  let assetUrl = null;
+
+  try {
+    const releaseData = await fetchJson(releaseApiUrl);
+    if (releaseData && Array.isArray(releaseData.assets)) {
+      const matched = releaseData.assets.find(a => pattern.test(a.name));
+      if (matched && matched.browser_download_url) {
+        assetUrl = matched.browser_download_url;
+      }
+    }
+  } catch (apiErr) {
+    // Fallback to static expected URL
+    if (platform === 'win32') {
+      assetUrl = `https://github.com/${REPO}/releases/download/v${VERSION}/inmem-memo_${VERSION}_x64-setup.exe`;
+    } else if (platform === 'linux') {
+      assetUrl = `https://github.com/${REPO}/releases/download/v${VERSION}/inmem-memo_${VERSION}_amd64.AppImage`;
+    } else if (platform === 'darwin') {
+      assetUrl = `https://github.com/${REPO}/releases/download/v${VERSION}/inmem-memo_${VERSION}_aarch64.dmg`;
+    }
+  }
+
+  if (!assetUrl) {
+    throw new Error(`Could not find a compatible binary release for ${platform} (${arch}).`);
+  }
+
+  return { downloadUrl: assetUrl, executable: execName };
+}
+
 async function main() {
   try {
-    const platformInfo = getPlatformInfo();
-
     if (!fs.existsSync(CACHE_DIR)) {
       fs.mkdirSync(CACHE_DIR, { recursive: true });
     }
 
-    const localBinaryPath = path.join(CACHE_DIR, platformInfo.executable);
+    const { downloadUrl, executable } = await getDownloadUrlAndExecutable();
+    const localBinaryPath = path.join(CACHE_DIR, executable);
 
-    // If not cached locally, download from GitHub Releases
     if (!fs.existsSync(localBinaryPath)) {
-      console.log(`⚡ InMem Scratchpad (v${VERSION}) をセットアップしています...`);
-      console.log(`📥 ネイティブバイナリ (${platformInfo.osName}) を取得中...`);
+      console.log(`⚡ Setting up InMem Scratchpad (v${VERSION})...`);
+      console.log(`📥 Downloading native package from GitHub Releases...`);
 
-      const downloadUrl = `https://github.com/${REPO}/releases/download/v${VERSION}/${platformInfo.assetName}`;
-      
-      try {
-        await downloadFile(downloadUrl, localBinaryPath);
-        if (process.platform !== 'win32') {
-          fs.chmodSync(localBinaryPath, 0o755);
-        }
-        console.log('✅ セットアップが完了しました！');
-      } catch (dlErr) {
-        console.error(`\n⚠️ バイナリの自動ダウンロードに失敗しました (${dlErr.message})`);
-        console.error(`GitHub Releases (https://github.com/${REPO}/releases) から手動で取得することも可能です。\n`);
-        process.exit(1);
+      await downloadFile(downloadUrl, localBinaryPath);
+
+      if (process.platform !== 'win32') {
+        fs.chmodSync(localBinaryPath, 0o755);
       }
+      console.log('✅ Setup complete!');
     }
 
-    // Launch application in detached mode
-    console.log('🚀 InMem Scratchpad を起動しています...');
-    const child = spawn(localBinaryPath, [], {
-      detached: true,
-      stdio: 'ignore'
-    });
+    console.log('🚀 Launching InMem Scratchpad...');
 
-    child.unref();
+    if (process.platform === 'win32') {
+      const child = spawn(localBinaryPath, [], { detached: true, stdio: 'ignore' });
+      child.unref();
+    } else if (process.platform === 'darwin') {
+      const child = spawn('open', [localBinaryPath], { detached: true, stdio: 'ignore' });
+      child.unref();
+    } else {
+      const child = spawn(localBinaryPath, [], { detached: true, stdio: 'ignore' });
+      child.unref();
+    }
+
     process.exit(0);
 
   } catch (err) {
-    console.error(`❌ エラー: ${err.message}`);
+    console.error(`\n❌ Error: ${err.message}`);
+    console.error(`Please download directly from https://github.com/${REPO}/releases\n`);
     process.exit(1);
   }
 }
