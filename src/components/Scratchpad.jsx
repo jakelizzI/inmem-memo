@@ -2,7 +2,17 @@ import React, { useRef, useEffect } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
-export default function Scratchpad({ text, setText, isPreview, tabSize = 2, wordWrap = true }) {
+export default function Scratchpad({ 
+  text, 
+  setText, 
+  isPreview, 
+  tabSize = 2, 
+  wordWrap = true,
+  wheelZoom = true,
+  currentFontSize = 15,
+  onFontSizeChange
+}) {
+  const containerRef = useRef(null);
   const textareaRef = useRef(null);
 
   // Auto focus on mount
@@ -11,6 +21,39 @@ export default function Scratchpad({ text, setText, isPreview, tabSize = 2, word
       textareaRef.current.focus();
     }
   }, [isPreview]);
+
+  // Handle Ctrl + MouseWheel to change font size
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      if ((e.ctrlKey || e.metaKey) && wheelZoom) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const currentSize = typeof currentFontSize === 'number' 
+          ? currentFontSize 
+          : parseInt(currentFontSize || 15, 10);
+
+        let newSize = currentSize;
+        if (e.deltaY < 0) {
+          // Zoom In (Max 36px)
+          newSize = Math.min(36, currentSize + 1);
+        } else if (e.deltaY > 0) {
+          // Zoom Out (Min 10px)
+          newSize = Math.max(10, currentSize - 1);
+        }
+
+        if (newSize !== currentSize && onFontSizeChange) {
+          onFontSizeChange(newSize);
+        }
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, [wheelZoom, currentFontSize, onFontSizeChange]);
 
   // Handle Tab key in editor with dynamic tab size
   const handleKeyDown = (e) => {
@@ -42,7 +85,7 @@ export default function Scratchpad({ text, setText, isPreview, tabSize = 2, word
   };
 
   return (
-    <main className="editor-container">
+    <main className="editor-container" ref={containerRef}>
       {!isPreview ? (
         <div className="textarea-wrapper">
           <textarea

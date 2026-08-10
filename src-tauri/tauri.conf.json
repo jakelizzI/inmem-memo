@@ -14,10 +14,10 @@
       {
         "label": "main",
         "title": "InMem Scratchpad",
-        "width": 780,
-        "height": 600,
-        "minWidth": 450,
-        "minHeight": 350,
+        "width": 880,
+        "height": 620,
+        "minWidth": 520,
+        "minHeight": 380,
         "center": true,
         "resizable": true
       }

@@ -15,7 +15,10 @@ import {
   Edit2,
   Code2,
   Play,
-  Power
+  Power,
+  ZoomIn,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 const PRESET_SHORTCUTS = [
@@ -101,34 +104,33 @@ export default function SettingsModal({
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isRecording]);
 
-  // Live regex test calculator
+  // Real-time Regex Test computation
   useEffect(() => {
     if (!actionPattern) {
       setTestOutput(testInput);
       return;
     }
     try {
-      const reg = new RegExp(actionPattern, actionFlags || 'g');
-      const formattedRep = actionReplacement.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-      setTestOutput(testInput.replace(reg, formattedRep));
-    } catch (e) {
-      setTestOutput(`(正規表現エラー: ${e.message})`);
+      const regex = new RegExp(actionPattern, actionFlags || 'g');
+      // Format escaped newlines in replacement
+      const rep = actionReplacement.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+      const res = testInput.replace(regex, rep);
+      setTestOutput(res);
+    } catch (err) {
+      setTestOutput(`[正規表現エラー: ${err.message}]`);
     }
-  }, [actionPattern, actionReplacement, actionFlags, testInput]);
+  }, [testInput, actionPattern, actionReplacement, actionFlags]);
 
   if (!isOpen) return null;
 
-  const handleSave = async () => {
+  const handleSave = () => {
     setIsSaving(true);
-    try {
-      await onSaveSettings(localSettings);
-      showToast('設定を保存・適用しました');
-      onClose();
-    } catch (err) {
-      showToast(err?.message || '設定の保存に失敗しました');
-    } finally {
+    onSaveSettings(localSettings);
+    setTimeout(() => {
       setIsSaving(false);
-    }
+      showToast('設定を保存しました');
+      onClose();
+    }, 150);
   };
 
   const handleAddOrUpdateAction = () => {
@@ -139,13 +141,14 @@ export default function SettingsModal({
 
     try {
       new RegExp(actionPattern, actionFlags);
-    } catch (e) {
-      showToast(`無効な正規表現です: ${e.message}`);
+    } catch (err) {
+      showToast(`正規表現が無効です: ${err.message}`);
       return;
     }
 
+    const currentActions = localSettings.customActions || [];
     const newAction = {
-      id: editingIndex !== null ? localSettings.customActions[editingIndex].id : `action-${Date.now()}`,
+      id: editingIndex !== null ? currentActions[editingIndex].id : `custom-${Date.now()}`,
       name: actionName.trim(),
       pattern: actionPattern,
       replacement: actionReplacement,
@@ -153,38 +156,36 @@ export default function SettingsModal({
       type: 'regex'
     };
 
-    setLocalSettings(prev => {
-      const actions = [...(prev.customActions || [])];
-      if (editingIndex !== null) {
-        actions[editingIndex] = newAction;
-      } else {
-        actions.push(newAction);
-      }
-      return { ...prev, customActions: actions };
-    });
+    let updatedActions;
+    if (editingIndex !== null) {
+      updatedActions = [...currentActions];
+      updatedActions[editingIndex] = newAction;
+      setEditingIndex(null);
+    } else {
+      updatedActions = [...currentActions, newAction];
+    }
 
+    setLocalSettings(prev => ({ ...prev, customActions: updatedActions }));
     setActionName('');
     setActionPattern('');
     setActionReplacement('');
-    setActionFlags('g');
-    setEditingIndex(null);
-    showToast(editingIndex !== null ? 'アクションを更新しました' : '新しいアクションを追加しました');
+    showToast(editingIndex !== null ? 'アクションを更新しました' : 'アクションを追加しました');
   };
 
   const handleEditAction = (index) => {
-    const act = localSettings.customActions[index];
-    setActionName(act.name);
-    setActionPattern(act.pattern);
-    setActionReplacement(act.replacement || '');
-    setActionFlags(act.flags || 'g');
-    setEditingIndex(index);
+    const act = (localSettings.customActions || [])[index];
+    if (act) {
+      setActionName(act.name);
+      setActionPattern(act.pattern);
+      setActionReplacement(act.replacement);
+      setActionFlags(act.flags || 'g');
+      setEditingIndex(index);
+    }
   };
 
   const handleDeleteAction = (index) => {
-    setLocalSettings(prev => ({
-      ...prev,
-      customActions: prev.customActions.filter((_, i) => i !== index)
-    }));
+    const updated = (localSettings.customActions || []).filter((_, i) => i !== index);
+    setLocalSettings(prev => ({ ...prev, customActions: updated }));
     if (editingIndex === index) {
       setEditingIndex(null);
       setActionName('');
@@ -195,25 +196,29 @@ export default function SettingsModal({
   };
 
   const handleAddPreset = (preset) => {
+    const currentActions = localSettings.customActions || [];
+    if (currentActions.some(a => a.name === preset.name)) {
+      showToast(`「${preset.name}」は既に追加されています`);
+      return;
+    }
     const newAction = {
-      id: `preset-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      name: preset.name,
-      pattern: preset.pattern,
-      replacement: preset.replacement,
-      flags: preset.flags,
-      description: preset.description,
+      id: `preset-${Date.now()}`,
+      ...preset,
       type: 'regex'
     };
     setLocalSettings(prev => ({
       ...prev,
-      customActions: [...(prev.customActions || []), newAction]
+      customActions: [...currentActions, newAction]
     }));
     showToast(`「${preset.name}」を追加しました`);
   };
 
+  // Convert font size string (e.g. '15px') or number to integer
+  const currentFontSizeNum = parseInt(localSettings.fontSize || 15, 10);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-extended" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-extended sidebar-layout" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
         <div className="modal-header">
           <div className="modal-title-wrapper">
@@ -221,86 +226,80 @@ export default function SettingsModal({
               <Settings size={18} />
             </div>
             <div>
-              <h2 className="modal-title">アプリケーション設定</h2>
-              <p className="modal-subtitle">設定値はローカルに永続化保存されます</p>
+              <h3 className="modal-title">環境設定</h3>
+              <p className="modal-subtitle">ショートカット・アクション・外観・エディタのカスタマイズ</p>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose} title="閉じる">
-            <X size={18} />
+          <button className="modal-close-btn" onClick={onClose}>
+            <X size={16} />
           </button>
         </div>
 
-        {/* Modal Tabs Navigation */}
-        <div className="modal-tabs">
-          <button 
-            className={`tab-btn ${activeTab === 'shortcuts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('shortcuts')}
-          >
-            <Keyboard size={14} />
-            <span>ショートカット</span>
-          </button>
+        {/* Modal Main Container: Sidebar + Body Content */}
+        <div className="modal-main-container">
+          {/* Vertical Sidebar Navigation */}
+          <nav className="modal-sidebar">
+            <button 
+              className={`sidebar-tab-btn ${activeTab === 'shortcuts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('shortcuts')}
+            >
+              <Keyboard size={15} />
+              <span>ショートカット</span>
+            </button>
+            <button 
+              className={`sidebar-tab-btn ${activeTab === 'actions' ? 'active' : ''}`}
+              onClick={() => setActiveTab('actions')}
+            >
+              <Wand2 size={15} />
+              <span>アクション・正規表現</span>
+            </button>
+            <button 
+              className={`sidebar-tab-btn ${activeTab === 'appearance' ? 'active' : ''}`}
+              onClick={() => setActiveTab('appearance')}
+            >
+              <Palette size={15} />
+              <span>外観・フォント</span>
+            </button>
+            <button 
+              className={`sidebar-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
+              onClick={() => setActiveTab('editor')}
+            >
+              <FileText size={15} />
+              <span>エディタ設定</span>
+            </button>
+            <button 
+              className={`sidebar-tab-btn ${activeTab === 'privacy' ? 'active' : ''}`}
+              onClick={() => setActiveTab('privacy')}
+            >
+              <Power size={15} />
+              <span>メモリ・終了</span>
+            </button>
+          </nav>
 
-          <button 
-            className={`tab-btn ${activeTab === 'actions' ? 'active' : ''}`}
-            onClick={() => setActiveTab('actions')}
-          >
-            <Wand2 size={14} />
-            <span>右側アクション</span>
-          </button>
+          {/* Tab Content Body */}
+          <div className="modal-body">
+            {/* TAB: Shortcuts */}
+            {activeTab === 'shortcuts' && (
+              <div className="tab-content">
+                <div className="setting-section">
+                  <div className="setting-section-title">
+                    <span>グローバル呼び出しショートカット</span>
+                  </div>
+                  <p className="setting-description">
+                    他のアプリ（ブラウザやIDEなど）の操作中でも、このキーを押すだけで即座にスクラッチパッドを画面最前面に表示 / 非表示トグルします。
+                  </p>
 
-          <button 
-            className={`tab-btn ${activeTab === 'appearance' ? 'active' : ''}`}
-            onClick={() => setActiveTab('appearance')}
-          >
-            <Palette size={14} />
-            <span>外観・テーマ</span>
-          </button>
-
-          <button 
-            className={`tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
-            onClick={() => setActiveTab('editor')}
-          >
-            <FileText size={14} />
-            <span>エディタ設定</span>
-          </button>
-
-          <button 
-            className={`tab-btn ${activeTab === 'privacy' ? 'active' : ''}`}
-            onClick={() => setActiveTab('privacy')}
-          >
-            <ShieldCheck size={14} />
-            <span>メモリ・終了</span>
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        <div className="modal-body">
-          {/* TAB: Shortcuts */}
-          {activeTab === 'shortcuts' && (
-            <div className="tab-content">
-              <div className="setting-section">
-                <div className="setting-section-title">
-                  <Keyboard size={15} />
-                  <span>グローバル呼び出しショートカット</span>
-                </div>
-                <p className="setting-description">
-                  他の作業中でも、このキーコンビネーションを押すことで瞬時にスクラッチパッドを表示 / 非表示にできます。
-                </p>
-
-                <div className="shortcut-input-group">
                   <div 
                     className={`shortcut-recorder-box ${isRecording ? 'recording' : ''}`}
                     onClick={() => setIsRecording(true)}
                   >
                     <div className="shortcut-key-chips">
-                      {localSettings.shortcut ? (
-                        localSettings.shortcut.split('+').map((key, index) => (
-                          <span key={index} className="key-chip">
-                            {key}
-                          </span>
-                        ))
+                      {isRecording ? (
+                        <span className="key-chip-placeholder">割り当てたいキーの組み合わせを押してください...</span>
                       ) : (
-                        <span className="key-chip-placeholder">未設定</span>
+                        localSettings.shortcut.split('+').map((key, i) => (
+                          <kbd key={i} className="key-chip">{key}</kbd>
+                        ))
                       )}
                     </div>
                     <button 
@@ -310,337 +309,376 @@ export default function SettingsModal({
                         setIsRecording(!isRecording);
                       }}
                     >
-                      <Sparkles size={13} />
-                      <span>{isRecording ? 'キーを入力中...' : 'キーを記録'}</span>
+                      <Keyboard size={13} />
+                      <span>{isRecording ? '入力待機中...' : 'キーを変更'}</span>
                     </button>
                   </div>
                 </div>
 
+                {/* Preset Shortcuts */}
                 <div className="presets-wrapper">
                   <span className="presets-label">おすすめプリセット:</span>
                   <div className="presets-list">
-                    {PRESET_SHORTCUTS.map((preset) => (
+                    {PRESET_SHORTCUTS.map((sc) => (
                       <button
-                        key={preset}
-                        className={`preset-btn ${localSettings.shortcut === preset ? 'active' : ''}`}
-                        onClick={() => {
-                          setLocalSettings((prev) => ({ ...prev, shortcut: preset }));
-                          setIsRecording(false);
-                        }}
+                        key={sc}
+                        className={`preset-btn ${localSettings.shortcut === sc ? 'active' : ''}`}
+                        onClick={() => setLocalSettings(prev => ({ ...prev, shortcut: sc }))}
                       >
-                        {preset}
+                        {sc}
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* TAB: Quick Actions / Regex */}
-          {activeTab === 'actions' && (
-            <div className="tab-content actions-tab-content">
-              {/* Builtin JSON Action */}
-              <div className="action-card builtin-card">
-                <div className="action-card-info">
-                  <div className="action-badge-default">
-                    <Code2 size={13} />
-                    <span>デフォルト先頭固定</span>
+            {/* TAB: Actions & Regex */}
+            {activeTab === 'actions' && (
+              <div className="tab-content">
+                {/* Add/Edit Custom Regex Form */}
+                <div className="custom-action-form-box">
+                  <div className="form-box-title">
+                    <Wand2 size={14} />
+                    <span>{editingIndex !== null ? '正規表現アクションの編集' : '新しい正規表現アクションを作成'}</span>
                   </div>
-                  <span className="action-card-title">JSONフォーマット (JSON整形)</span>
-                  <span className="action-card-desc">エディタ内のJSON文字列をインデント(2スペース)で美しく自動整形します</span>
+
+                  <div className="form-grid">
+                    <div className="form-field">
+                      <label>アクション名 (ボタン表示名)</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="例: カンマを改行に"
+                        value={actionName}
+                        onChange={(e) => setActionName(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-field">
+                      <label>フラグ (flags)</label>
+                      <input 
+                        type="text" 
+                        className="form-input code-font" 
+                        placeholder="g, gm, gi など"
+                        value={actionFlags}
+                        onChange={(e) => setActionFlags(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-field">
+                      <label>正規表現パターン (Pattern)</label>
+                      <input 
+                        type="text" 
+                        className="form-input code-font" 
+                        placeholder="例: ,\\s*"
+                        value={actionPattern}
+                        onChange={(e) => setActionPattern(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-field">
+                      <label>置換文字列 (Replacement)</label>
+                      <input 
+                        type="text" 
+                        className="form-input code-font" 
+                        placeholder="例: \\n (改行)"
+                        value={actionReplacement}
+                        onChange={(e) => setActionReplacement(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live Regex Test Box */}
+                  <div className="live-test-box">
+                    <div className="live-test-header">
+                      <Play size={11} />
+                      <span>リアルタイム動作テスト</span>
+                    </div>
+                    <div className="live-test-inputs">
+                      <input 
+                        type="text" 
+                        className="live-input" 
+                        placeholder="テスト入力..."
+                        value={testInput}
+                        onChange={(e) => setTestInput(e.target.value)}
+                      />
+                      <span className="live-arrow">➔</span>
+                      <input 
+                        type="text" 
+                        className="live-output" 
+                        readOnly 
+                        value={testOutput} 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-actions-row">
+                    {editingIndex !== null && (
+                      <button 
+                        className="btn" 
+                        onClick={() => {
+                          setEditingIndex(null);
+                          setActionName('');
+                          setActionPattern('');
+                          setActionReplacement('');
+                        }}
+                      >
+                        キャンセル
+                      </button>
+                    )}
+                    <button className="btn btn-primary" onClick={handleAddOrUpdateAction}>
+                      <Plus size={13} />
+                      <span>{editingIndex !== null ? '変更を確定' : 'アクションを追加'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Registered Actions List */}
+                <div className="registered-actions-section">
+                  <span className="section-small-title">登録済みカスタムアクション ({localSettings.customActions?.length || 0})</span>
+                  {localSettings.customActions && localSettings.customActions.length > 0 ? (
+                    <div className="actions-card-list">
+                      {localSettings.customActions.map((act, idx) => (
+                        <div key={act.id || idx} className="action-card">
+                          <div className="action-card-info">
+                            <div className="action-card-top">
+                              <span className="action-card-title">{act.name}</span>
+                              <span className="action-flags-badge">/{act.flags || 'g'}</span>
+                            </div>
+                            <div className="action-regex-details">
+                              <code>/{act.pattern}/</code> ➔ <code>"{act.replacement}"</code>
+                            </div>
+                          </div>
+                          <div className="action-card-buttons">
+                            <button 
+                              className="btn-icon" 
+                              onClick={() => handleEditAction(idx)}
+                              title="編集"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button 
+                              className="btn-icon btn-icon-danger" 
+                              onClick={() => handleDeleteAction(idx)}
+                              title="削除"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-actions-hint">
+                      追加されたカスタムアクションはまだありません。上記のフォームまたは下のプリセットから追加してください。
+                    </div>
+                  )}
+                </div>
+
+                {/* Presets List */}
+                <div className="presets-wrapper">
+                  <span className="presets-label">おすすめ正規表現プリセット (クリックで追加):</span>
+                  <div className="presets-list">
+                    {PRESET_REGEX_ACTIONS.map((preset, i) => (
+                      <button
+                        key={i}
+                        className="preset-btn"
+                        onClick={() => handleAddPreset(preset)}
+                        title={preset.description}
+                      >
+                        <Plus size={11} />
+                        <span>{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
+            )}
 
-              {/* Custom Action Form */}
-              <div className="custom-action-form-box">
-                <div className="form-box-title">
-                  <Wand2 size={14} />
-                  <span>{editingIndex !== null ? '正規表現アクションの編集' : '新規正規表現アクションの追加'}</span>
-                </div>
-
-                <div className="form-grid">
-                  <div className="form-field">
-                    <label>ボタン表示名</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="例: カンマを改行に"
-                      value={actionName}
-                      onChange={(e) => setActionName(e.target.value)}
-                    />
+            {/* TAB: Appearance */}
+            {activeTab === 'appearance' && (
+              <div className="tab-content">
+                {/* Color Theme Selector (3 Options) */}
+                <div className="setting-section">
+                  <div className="setting-section-title">
+                    <span>カラーテーマ</span>
                   </div>
+                  <div className="theme-options-grid">
+                    <label className={`theme-card ${localSettings.theme === 'midnight' ? 'active' : ''}`}>
+                      <input 
+                        type="radio" 
+                        name="theme" 
+                        value="midnight" 
+                        checked={localSettings.theme === 'midnight'}
+                        onChange={(e) => setLocalSettings(prev => ({ ...prev, theme: e.target.value }))}
+                      />
+                      <div className="theme-preview midnight"></div>
+                      <div className="theme-meta">
+                        <span className="theme-name">Midnight Dark</span>
+                        <span className="theme-desc">深いグラデーション</span>
+                      </div>
+                    </label>
 
-                  <div className="form-field">
-                    <label>フラグ (Flags)</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="g, i, m"
-                      value={actionFlags}
-                      onChange={(e) => setActionFlags(e.target.value)}
-                    />
-                  </div>
+                    <label className={`theme-card ${localSettings.theme === 'oled' ? 'active' : ''}`}>
+                      <input 
+                        type="radio" 
+                        name="theme" 
+                        value="oled" 
+                        checked={localSettings.theme === 'oled'}
+                        onChange={(e) => setLocalSettings(prev => ({ ...prev, theme: e.target.value }))}
+                      />
+                      <div className="theme-preview oled"></div>
+                      <div className="theme-meta">
+                        <span className="theme-name">OLED Pure Black</span>
+                        <span className="theme-desc">完全な黒で省電力</span>
+                      </div>
+                    </label>
 
-                  <div className="form-field full-width">
-                    <label>検索する正規表現パターン (Pattern)</label>
-                    <input 
-                      type="text" 
-                      className="form-input code-font" 
-                      placeholder="例: ,\s* または ^\s*$\n"
-                      value={actionPattern}
-                      onChange={(e) => setActionPattern(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-field full-width">
-                    <label>置換後の文字列 (Replacement)</label>
-                    <input 
-                      type="text" 
-                      className="form-input code-font" 
-                      placeholder="例: \n または 空白"
-                      value={actionReplacement}
-                      onChange={(e) => setActionReplacement(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* Live Regex Test Box */}
-                <div className="live-test-box">
-                  <div className="live-test-header">
-                    <Play size={11} />
-                    <span>ライブ置換テスト</span>
-                  </div>
-                  <div className="live-test-inputs">
-                    <input 
-                      type="text" 
-                      className="live-input" 
-                      placeholder="テスト用文字列"
-                      value={testInput}
-                      onChange={(e) => setTestInput(e.target.value)}
-                    />
-                    <div className="live-arrow">➔</div>
-                    <input 
-                      type="text" 
-                      className="live-output" 
-                      readOnly 
-                      value={testOutput}
-                    />
+                    <label className={`theme-card ${localSettings.theme === 'light' ? 'active' : ''}`}>
+                      <input 
+                        type="radio" 
+                        name="theme" 
+                        value="light" 
+                        checked={localSettings.theme === 'light'}
+                        onChange={(e) => setLocalSettings(prev => ({ ...prev, theme: e.target.value }))}
+                      />
+                      <div className="theme-preview light"></div>
+                      <div className="theme-meta">
+                        <span className="theme-name">Clean Light</span>
+                        <span className="theme-desc">爽やかで明るい白</span>
+                      </div>
+                    </label>
                   </div>
                 </div>
 
-                <div className="form-actions-row">
-                  {editingIndex !== null && (
-                    <button 
-                      className="btn" 
-                      onClick={() => {
-                        setEditingIndex(null);
-                        setActionName('');
-                        setActionPattern('');
-                        setActionReplacement('');
-                      }}
-                    >
-                      キャンセル
-                    </button>
-                  )}
-                  <button className="btn btn-primary" onClick={handleAddOrUpdateAction}>
-                    <Plus size={13} />
-                    <span>{editingIndex !== null ? '変更を確定' : 'アクションを追加'}</span>
+                {/* Font Size & Ctrl+Wheel Zoom */}
+                <div className="setting-section">
+                  <div className="setting-section-title">
+                    <span>文字サイズ設定</span>
+                  </div>
+                  
+                  <div className="font-size-control-box">
+                    {/* Wheel Zoom Toggle */}
+                    <label className="toggle-row">
+                      <div className="toggle-info">
+                        <span className="toggle-title">Ctrl + マウスホイールで文字サイズを変更</span>
+                        <span className="toggle-desc">エディタ上で Ctrl（Mac: Cmd）を押しながらホイールを回すと拡大・縮小します</span>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        className="custom-toggle"
+                        checked={localSettings.wheelZoom ?? true}
+                        onChange={(e) => setLocalSettings(prev => ({ ...prev, wheelZoom: e.target.checked }))}
+                      />
+                    </label>
+
+                    {/* Number Input Control */}
+                    <div className={`font-size-input-wrapper ${localSettings.wheelZoom ?? true ? 'disabled' : ''}`}>
+                      <div className="font-size-info">
+                        <span className="font-size-label">エディタの基準文字サイズ</span>
+                        <span className="font-size-hint">
+                          {localSettings.wheelZoom ?? true 
+                            ? '※ ホイール変更がONのため、エディタ上で直接 Ctrl + ホイール操作が可能です' 
+                            : '10px 〜 36px の範囲で数値を入力して調整できます'}
+                        </span>
+                      </div>
+                      <div className="font-size-actions">
+                        {localSettings.wheelZoom ?? true ? (
+                          <span className="font-size-badge">{currentFontSizeNum}px</span>
+                        ) : (
+                          <input 
+                            type="number" 
+                            className="font-size-number-input"
+                            min="10"
+                            max="36"
+                            value={currentFontSizeNum}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (!isNaN(val) && val >= 10 && val <= 36) {
+                                setLocalSettings(prev => ({ ...prev, fontSize: `${val}px` }));
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: Editor Settings */}
+            {activeTab === 'editor' && (
+              <div className="tab-content">
+                <div className="setting-section">
+                  <div className="setting-section-title">
+                    <span>Tabキーのインデント幅</span>
+                  </div>
+                  <div className="segmented-control">
+                    {[2, 4].map((spaces) => (
+                      <button
+                        key={spaces}
+                        className={`segment-btn ${localSettings.tabSize === spaces ? 'active' : ''}`}
+                        onClick={() => setLocalSettings(prev => ({ ...prev, tabSize: spaces }))}
+                      >
+                        {spaces} スペース
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="setting-section">
+                  <label className="toggle-row">
+                    <div className="toggle-info">
+                      <span className="toggle-title">自動折り返し (Word Wrap)</span>
+                      <span className="toggle-desc">長い行をウィンドウ幅に合わせて折り返します</span>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      className="custom-toggle"
+                      checked={localSettings.wordWrap}
+                      onChange={(e) => setLocalSettings(prev => ({ ...prev, wordWrap: e.target.checked }))}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: Privacy & Application Termination */}
+            {activeTab === 'privacy' && (
+              <div className="tab-content">
+                <div className="info-box-large">
+                  <div className="info-box-header">
+                    <ShieldCheck size={18} />
+                    <span>完全インメモリ保護ポリシー</span>
+                  </div>
+                  <p className="info-box-text">
+                    ・<strong>メモ本文テキスト</strong>: ハードディスク・データベース・localStorageには一切書き込まれません。アプリを完全終了すると即座にメモリから完全消滅します。<br />
+                    ・<strong>ユーザー設定</strong>: ショートカット・カスタム正規表現・外観テーマ・エディタ設定のみがローカル（localStorage）に安全に保存されます。
+                  </p>
+                </div>
+
+                {/* Complete Application Exit Section */}
+                <div className="quit-app-section">
+                  <div className="quit-app-info">
+                    <span className="quit-app-title">アプリを完全終了 (Exit)</span>
+                    <span className="quit-app-desc">
+                      タスクトレイ常駐を含めプロセス全体を完全に終了し、OSメモリを解放します。（※未保存のメモは完全に消去されます）
+                    </span>
+                  </div>
+                  <button 
+                    className="btn btn-quit-app"
+                    onClick={() => {
+                      if (window.confirm('アプリケーションを完全に終了しますか？\n（※メモリ上のメモデータはすべて破棄されます）')) {
+                        onQuitApp();
+                      }
+                    }}
+                  >
+                    <Power size={14} />
+                    <span>アプリを完全終了</span>
                   </button>
                 </div>
               </div>
-
-              {/* Registered Actions List */}
-              <div className="registered-actions-section">
-                <span className="section-small-title">登録済みカスタムアクション ({localSettings.customActions?.length || 0})</span>
-                {localSettings.customActions && localSettings.customActions.length > 0 ? (
-                  <div className="actions-card-list">
-                    {localSettings.customActions.map((act, idx) => (
-                      <div key={act.id || idx} className="action-card">
-                        <div className="action-card-info">
-                          <div className="action-card-top">
-                            <span className="action-card-title">{act.name}</span>
-                            <span className="action-flags-badge">/{act.flags || 'g'}</span>
-                          </div>
-                          <div className="action-regex-details">
-                            <code>/{act.pattern}/</code> ➔ <code>"{act.replacement}"</code>
-                          </div>
-                        </div>
-                        <div className="action-card-buttons">
-                          <button 
-                            className="btn-icon" 
-                            onClick={() => handleEditAction(idx)}
-                            title="編集"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                          <button 
-                            className="btn-icon btn-icon-danger" 
-                            onClick={() => handleDeleteAction(idx)}
-                            title="削除"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-actions-hint">
-                    追加されたカスタムアクションはまだありません。上記のフォームまたは下のプリセットから追加してください。
-                  </div>
-                )}
-              </div>
-
-              {/* Presets List */}
-              <div className="presets-wrapper">
-                <span className="presets-label">おすすめ正規表現プリセット (クリックで追加):</span>
-                <div className="presets-list">
-                  {PRESET_REGEX_ACTIONS.map((preset, i) => (
-                    <button
-                      key={i}
-                      className="preset-btn"
-                      onClick={() => handleAddPreset(preset)}
-                      title={preset.description}
-                    >
-                      <Plus size={11} />
-                      <span>{preset.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: Appearance */}
-          {activeTab === 'appearance' && (
-            <div className="tab-content">
-              <div className="setting-section">
-                <div className="setting-section-title">
-                  <span>カラーテーマ</span>
-                </div>
-                <div className="theme-options-grid">
-                  <label className={`theme-card ${localSettings.theme === 'midnight' ? 'active' : ''}`}>
-                    <input 
-                      type="radio" 
-                      name="theme" 
-                      value="midnight" 
-                      checked={localSettings.theme === 'midnight'}
-                      onChange={(e) => setLocalSettings(prev => ({ ...prev, theme: e.target.value }))}
-                    />
-                    <div className="theme-preview midnight"></div>
-                    <div className="theme-meta">
-                      <span className="theme-name">Midnight Dark</span>
-                      <span className="theme-desc">標準の深いグラデーション</span>
-                    </div>
-                  </label>
-
-                  <label className={`theme-card ${localSettings.theme === 'oled' ? 'active' : ''}`}>
-                    <input 
-                      type="radio" 
-                      name="theme" 
-                      value="oled" 
-                      checked={localSettings.theme === 'oled'}
-                      onChange={(e) => setLocalSettings(prev => ({ ...prev, theme: e.target.value }))}
-                    />
-                    <div className="theme-preview oled"></div>
-                    <div className="theme-meta">
-                      <span className="theme-name">OLED Pure Black</span>
-                      <span className="theme-desc">完全な黒で省電力</span>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div className="setting-section">
-                <div className="setting-section-title">
-                  <span>フォントサイズ</span>
-                </div>
-                <div className="segmented-control">
-                  {['13px', '15px', '17px'].map((size) => (
-                    <button
-                      key={size}
-                      className={`segment-btn ${localSettings.fontSize === size ? 'active' : ''}`}
-                      onClick={() => setLocalSettings(prev => ({ ...prev, fontSize: size }))}
-                    >
-                      {size === '13px' ? '小 (13px)' : size === '15px' ? '中 (標準 15px)' : '大 (17px)'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: Editor Settings */}
-          {activeTab === 'editor' && (
-            <div className="tab-content">
-              <div className="setting-section">
-                <div className="setting-section-title">
-                  <span>Tabキーのインデント幅</span>
-                </div>
-                <div className="segmented-control">
-                  {[2, 4].map((spaces) => (
-                    <button
-                      key={spaces}
-                      className={`segment-btn ${localSettings.tabSize === spaces ? 'active' : ''}`}
-                      onClick={() => setLocalSettings(prev => ({ ...prev, tabSize: spaces }))}
-                    >
-                      {spaces} スペース
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="setting-section">
-                <label className="toggle-row">
-                  <div className="toggle-info">
-                    <span className="toggle-title">自動折り返し (Word Wrap)</span>
-                    <span className="toggle-desc">長い行をウィンドウ幅に合わせて折り返します</span>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    className="custom-toggle"
-                    checked={localSettings.wordWrap}
-                    onChange={(e) => setLocalSettings(prev => ({ ...prev, wordWrap: e.target.checked }))}
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: Privacy & Application Termination */}
-          {activeTab === 'privacy' && (
-            <div className="tab-content">
-              <div className="info-box-large">
-                <div className="info-box-header">
-                  <ShieldCheck size={18} />
-                  <span>完全インメモリ保護ポリシー</span>
-                </div>
-                <p className="info-box-text">
-                  ・<strong>メモ本文テキスト</strong>: ハードディスク・データベース・localStorageには一切書き込まれません。アプリを完全終了すると即座にメモリから完全消滅します。<br />
-                  ・<strong>設定値・アクション定義</strong>: ショートカットキー、カスタム正規表現アクション、テーマ設定のみがローカルに保存され、次回起動時にも復元されます。
-                </p>
-              </div>
-
-              {/* Complete Application Exit Section */}
-              <div className="quit-app-section">
-                <div className="quit-app-info">
-                  <span className="quit-app-title">アプリケーションの完全終了</span>
-                  <span className="quit-app-desc">
-                    タスクトレイの常駐プロセスを含め、アプリを完全に終了してメモリを解放します。
-                  </span>
-                </div>
-                <button 
-                  className="btn btn-quit-app" 
-                  onClick={onQuitApp}
-                  title="タスクトレイを含めて完全に終了"
-                >
-                  <Power size={14} />
-                  <span>アプリを完全終了 (Exit)</span>
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Modal Footer */}
@@ -653,8 +691,17 @@ export default function SettingsModal({
             onClick={handleSave}
             disabled={isSaving}
           >
-            {isSaving ? <RefreshCw size={14} className="spin" /> : <Check size={14} />}
-            <span>設定を保存</span>
+            {isSaving ? (
+              <>
+                <RefreshCw size={13} className="spin" />
+                <span>保存中...</span>
+              </>
+            ) : (
+              <>
+                <Check size={13} />
+                <span>設定を保存</span>
+              </>
+            )}
           </button>
         </div>
       </div>

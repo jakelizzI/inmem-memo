@@ -13,6 +13,7 @@ const DEFAULT_SETTINGS = {
   shortcut: 'Ctrl+Shift+M',
   theme: 'midnight',
   fontSize: '15px',
+  wheelZoom: true,
   tabSize: 2,
   wordWrap: true,
   customActions: [
@@ -84,8 +85,11 @@ export default function App() {
 
   // Apply theme & font size to DOM root
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', settings.theme);
-    document.documentElement.style.setProperty('--editor-font-size', settings.fontSize);
+    document.documentElement.setAttribute('data-theme', settings.theme || 'midnight');
+    const sizeStr = typeof settings.fontSize === 'number' 
+      ? `${settings.fontSize}px` 
+      : (settings.fontSize || '15px');
+    document.documentElement.style.setProperty('--editor-font-size', sizeStr);
   }, [settings]);
 
   // Sync initial/updated shortcut with Tauri backend
@@ -103,99 +107,53 @@ export default function App() {
     syncShortcut();
   }, [settings.shortcut]);
 
-  const showToast = (msg) => {
+  const showToast = useCallback((msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 2500);
-  };
+    const timer = setTimeout(() => {
+      setToastMessage('');
+    }, 2400);
+    return () => clearTimeout(timer);
+  }, []);
 
-  // Keyboard shortcut listener for Ctrl+Z (Undo) and Ctrl+Y / Ctrl+Shift+Z (Redo)
-  useEffect(() => {
-    const handleUndoRedoShortcuts = (e) => {
-      if (isSettingsOpen) return;
-
-      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
-
-      if (isCtrlOrCmd && !e.altKey) {
-        // Redo: Ctrl+Y or Ctrl+Shift+Z
-        if (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z')) {
-          e.preventDefault();
-          if (redo()) {
-            showToast('やり直しました (Redo)');
-          }
-        }
-        // Undo: Ctrl+Z
-        else if (e.key.toLowerCase() === 'z') {
-          e.preventDefault();
-          if (undo()) {
-            showToast('元に戻しました (Undo)');
-          }
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleUndoRedoShortcuts);
-    return () => window.removeEventListener('keydown', handleUndoRedoShortcuts);
-  }, [undo, redo, isSettingsOpen]);
-
-  const handleCopy = async () => {
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast('クリップボードにコピーしました');
-    } catch (err) {
-      showToast('コピーに失敗しました');
-    }
-  };
-
-  const handleClear = () => {
-    if (!text) return;
-    if (window.confirm('メモを消去してもよろしいですか？（メモリから即座に削除されます）')) {
-      setTextImmediate('');
-      showToast('メモをクリアしました (Ctrl+Zで復元可能)');
-    }
-  };
-
-  const handleExport = () => {
-    if (!text) return;
-    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `scratchpad-${new Date().toISOString().slice(0, 10)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('ファイルとして保存しました');
-  };
-
-  const handleSaveSettings = async (newSettings) => {
+  const handleSaveSettings = (newSettings) => {
     setSettings(newSettings);
     try {
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings));
     } catch (e) {
-      console.error('Failed to persist settings:', e);
+      console.error('Failed to save settings to localStorage:', e);
     }
   };
 
-  // Complete Application Exit (Terminates Tray and Process)
-  const handleQuitApp = async () => {
-    if (window.confirm('アプリケーションを完全に終了しますか？\n（タスクトレイからも終了し、メモリ上のメモデータは完全に破棄されます）')) {
+  // Dynamic font size change via Ctrl+Wheel (silent without toast)
+  const handleFontSizeChange = useCallback((newSize) => {
+    const sizeStr = `${newSize}px`;
+    setSettings(prev => {
+      const updated = { ...prev, fontSize: sizeStr };
       try {
-        if (window.__TAURI_INTERNALS__ || window.__TAURI__) {
-          const { invoke } = await import('@tauri-apps/api/core');
-          await invoke('exit_app');
-        } else {
-          window.close();
-        }
-      } catch (err) {
-        console.error('Failed to exit app:', err);
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  }, []);
+
+  // Complete application exit (Rust command exit_app)
+  const handleQuitApp = async () => {
+    try {
+      if (window.__TAURI_INTERNALS__ || window.__TAURI__) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('exit_app');
+      } else {
         window.close();
       }
+    } catch (err) {
+      console.error('Failed to exit application:', err);
+      window.close();
     }
   };
 
-  // Execute Action (JSON Format or Custom Regex Replacement) with explicit Undo checkpoint
+  // Action executor (JSON formatting & Custom Regex)
   const handleExecuteAction = (action) => {
-    if (!text) {
+    if (!text.trim()) {
       showToast('テキストが入力されていません');
       return;
     }
@@ -203,73 +161,118 @@ export default function App() {
     if (action.id === 'json-format') {
       try {
         const parsed = JSON.parse(text);
-        const formatted = JSON.stringify(parsed, null, settings.tabSize || 2);
+        const formatted = JSON.stringify(parsed, null, 2);
         setTextImmediate(formatted);
-        showToast('JSONを整形しました (Ctrl+Zで戻せます)');
+        showToast('JSONを美しく整形しました (Ctrl+Zで復元可能)');
       } catch (err) {
         showToast(`JSON解析エラー: ${err.message}`);
       }
       return;
     }
 
-    if (action.pattern) {
+    if (action.type === 'regex' || action.pattern) {
       try {
-        const reg = new RegExp(action.pattern, action.flags || 'g');
-        const formattedRep = (action.replacement || '').replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-        const count = (text.match(reg) || []).length;
-        const newText = text.replace(reg, formattedRep);
-        setTextImmediate(newText);
-        showToast(`「${action.name}」を実行しました (${count}箇所置換 - Ctrl+Zで戻せます)`);
+        const regex = new RegExp(action.pattern, action.flags || 'g');
+        const replacement = (action.replacement || '')
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t');
+        const replaced = text.replace(regex, replacement);
+        setTextImmediate(replaced);
+        showToast(`「${action.name}」を実行しました (Ctrl+Zで復元可能)`);
       } catch (err) {
         showToast(`正規表現エラー: ${err.message}`);
       }
     }
   };
 
-  const openSettingsWithTab = (tabName = 'shortcuts') => {
-    setInitialSettingsTab(tabName);
-    setIsSettingsOpen(true);
+  const handleCopy = async () => {
+    if (!text) {
+      showToast('コピーする内容がありません');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('クリップボードにコピーしました！');
+    } catch (err) {
+      showToast('コピーに失敗しました');
+    }
   };
 
-  // Compose all active toolbar actions: JSON Format first, followed by custom actions
-  const allToolbarActions = [
+  const handleClear = () => {
+    if (!text) return;
+    if (window.confirm('メモの内容を消去しますか？\n（※Ctrl+Zで元に戻せます）')) {
+      setTextImmediate('');
+      showToast('メモを消去しました (Ctrl+Zで復元可能)');
+    }
+  };
+
+  const handleExport = () => {
+    if (!text) {
+      showToast('エクスポートする内容がありません');
+      return;
+    }
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inmem_memo_${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Markdownファイルとしてエクスポートしました');
+  };
+
+  // Combine built-in actions with user's custom actions
+  const allActions = [
     BUILTIN_JSON_ACTION,
     ...(settings.customActions || [])
   ];
 
   return (
     <div className="app-container">
-      <Header 
-        isPreview={isPreview}
-        setIsPreview={setIsPreview}
+      {/* Header */}
+      <Header
         onCopy={handleCopy}
         onClear={handleClear}
         onExport={handleExport}
-        onOpenSettings={() => openSettingsWithTab('shortcuts')}
-        onUndo={undo}
-        onRedo={redo}
+        isPreview={isPreview}
+        setIsPreview={setIsPreview}
+        onOpenSettings={() => {
+          setInitialSettingsTab('shortcuts');
+          setIsSettingsOpen(true);
+        }}
         canUndo={canUndo}
         canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
       />
 
+      {/* Main Workspace Layout (Editor + Right Action Toolbar) */}
       <div className="main-workspace-layout">
-        <Scratchpad 
+        <Scratchpad
           text={text}
           setText={setText}
           isPreview={isPreview}
-          tabSize={settings.tabSize}
-          wordWrap={settings.wordWrap}
+          tabSize={settings.tabSize || 2}
+          wordWrap={settings.wordWrap !== false}
+          wheelZoom={settings.wheelZoom ?? true}
+          currentFontSize={settings.fontSize || 15}
+          onFontSizeChange={handleFontSizeChange}
         />
 
-        <RightActionToolbar 
-          actions={allToolbarActions}
+        <RightActionToolbar
+          actions={allActions}
           onExecuteAction={handleExecuteAction}
-          onOpenSettings={openSettingsWithTab}
+          onOpenSettingsForAction={() => {
+            setInitialSettingsTab('actions');
+            setIsSettingsOpen(true);
+          }}
         />
       </div>
 
+      {/* Status Bar */}
       <StatusBar text={text} />
 
+      {/* Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -280,9 +283,10 @@ export default function App() {
         initialTab={initialSettingsTab}
       />
 
+      {/* Toast Notification */}
       {toastMessage && (
         <div className="toast-notification">
-          <CheckCircle2 size={16} />
+          <CheckCircle2 size={15} />
           <span>{toastMessage}</span>
         </div>
       )}
