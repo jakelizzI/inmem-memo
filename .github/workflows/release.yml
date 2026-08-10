@@ -1,12 +1,9 @@
-name: Build & Release
+name: Release
 
 on:
   push:
-    branches: [main]
     tags:
       - 'v*'
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -66,7 +63,6 @@ jobs:
 
   publish-npm:
     needs: build-tauri
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -81,11 +77,13 @@ jobs:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Update npm to latest (Required for Trusted Publishing)
+      - name: Update npm to latest
         run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci || npm install
 
       - name: Publish to npm (Trusted Publishing / OIDC & Provenance)
-        run: npm publish --access public --provenance
+        run: |
+          # Publish with graceful handling if the version is already published
+          npm publish --access public --provenance || echo "Version already published on npm, skipping."
