@@ -1,18 +1,18 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
 PackageIdentifier: InMemMemo.InMemScratchpad
-PackageVersion: 1.2.0
+PackageVersion: 1.2.1
 DefaultLocale: ja-JP
 ManifestType: version
 ManifestVersion: 1.6.0
 ---
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 PackageIdentifier: InMemMemo.InMemScratchpad
-PackageVersion: 1.2.0
+PackageVersion: 1.2.1
 MinimumOSVersion: 10.0.0.0
 Installers:
   - Architecture: x64
     InstallerType: nullsoft
-    InstallerUrl: https://github.com/jakelizzI/inmem-memo/releases/download/v1.2.0/inmem-memo_1.2.0_x64-setup.exe
+    InstallerUrl: https://github.com/jakelizzI/inmem-memo/releases/download/v1.2.1/inmem-memo_1.2.1_x64-setup.exe
     InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
     Scope: user
 ManifestType: installer
@@ -20,7 +20,7 @@ ManifestVersion: 1.6.0
 ---
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.locale.ja-JP.1.6.0.schema.json
 PackageIdentifier: InMemMemo.InMemScratchpad
-PackageVersion: 1.2.0
+PackageVersion: 1.2.1
 PackageLocale: ja-JP
 Publisher: jakelizzI
 PublisherUrl: https://github.com/jakelizzI/inmem-memo
