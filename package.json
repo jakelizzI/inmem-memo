@@ -13,11 +13,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jakelizzI/InMem_Scratchpad.git"
+    "url": "git+https://github.com/jakelizzI/inmem-memo.git"
   },
-  "homepage": "https://github.com/jakelizzI/InMem_Scratchpad#readme",
+  "homepage": "https://github.com/jakelizzI/inmem-memo#readme",
   "bugs": {
-    "url": "https://github.com/jakelizzI/InMem_Scratchpad/issues"
+    "url": "https://github.com/jakelizzI/inmem-memo/issues"
   },
   "keywords": [
     "scratchpad",

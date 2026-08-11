@@ -12,7 +12,7 @@ MinimumOSVersion: 10.0.0.0
 Installers:
   - Architecture: x64
     InstallerType: nullsoft
-    InstallerUrl: https://github.com/jakelizzI/InMem_Scratchpad/releases/download/v1.2.0/inmem-memo_1.2.0_x64-setup.exe
+    InstallerUrl: https://github.com/jakelizzI/inmem-memo/releases/download/v1.2.0/inmem-memo_1.2.0_x64-setup.exe
     InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
     Scope: user
 ManifestType: installer
@@ -23,10 +23,10 @@ PackageIdentifier: InMemMemo.InMemScratchpad
 PackageVersion: 1.2.0
 PackageLocale: ja-JP
 Publisher: jakelizzI
-PublisherUrl: https://github.com/jakelizzI/InMem_Scratchpad
+PublisherUrl: https://github.com/jakelizzI/inmem-memo
 Author: jakelizzI
 PackageName: InMem Scratchpad
-PackageUrl: https://github.com/jakelizzI/InMem_Scratchpad
+PackageUrl: https://github.com/jakelizzI/inmem-memo
 License: MIT
 Copyright: Copyright (c) 2026 jakelizzI
 ShortDescription: 起動時のみメモをメモリ保存する超高速スクラッチパッドアプリ

@@ -16,7 +16,7 @@ const packageJson = JSON.parse(
 );
 
 const VERSION = packageJson.version;
-const REPO = 'jakelizzI/InMem_Scratchpad';
+const REPO = 'jakelizzI/inmem-memo';
 const CACHE_DIR = path.join(os.homedir(), '.inmem-memo', `v${VERSION}`);
 
 function fetchJson(url) {
