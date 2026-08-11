@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import Scratchpad from './components/Scratchpad';
 import StatusBar from './components/StatusBar';
@@ -61,6 +61,9 @@ export default function App() {
   const [initialSettingsTab, setInitialSettingsTab] = useState('shortcuts');
   const [toastMessage, setToastMessage] = useState('');
 
+  // Flag to bypass beforeunload when intentionally quitting
+  const isQuittingRef = useRef(false);
+
   // Persistent user settings (localStorage)
   const [settings, setSettings] = useState(() => {
     try {
@@ -71,9 +74,10 @@ export default function App() {
     }
   });
 
-  // Prompt before unload if there's unsaved memory text
+  // Prompt before unload if there's unsaved memory text (unless quitting)
   useEffect(() => {
     const handleBeforeUnload = (e) => {
+      if (isQuittingRef.current) return;
       if (text.trim()) {
         e.preventDefault();
         e.returnValue = 'メモはメモリ上にしか保存されていません。終了すると消去されますがよろしいですか？';
@@ -139,6 +143,7 @@ export default function App() {
   // Complete application exit (Rust command exit_app)
   const handleQuitApp = async () => {
     try {
+      isQuittingRef.current = true;
       if (window.__TAURI_INTERNALS__ || window.__TAURI__) {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('exit_app');
