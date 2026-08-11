@@ -18,7 +18,11 @@ import {
   Power,
   ZoomIn,
   Sun,
-  Moon
+  Moon,
+  HelpCircle,
+  Info,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 const PRESET_SHORTCUTS = [
@@ -56,11 +60,12 @@ export default function SettingsModal({
   const [actionName, setActionName] = useState('');
   const [actionPattern, setActionPattern] = useState('');
   const [actionReplacement, setActionReplacement] = useState('');
-  const [actionFlags, setActionFlags] = useState('g');
+  const [actionFlags, setActionFlags] = useState('gm');
   const [editingIndex, setEditingIndex] = useState(null);
+  const [showFlagHelp, setShowFlagHelp] = useState(false);
 
-  // Live test preview state
-  const [testInput, setTestInput] = useState('Apple, Banana, Orange, Mango');
+  // Live test preview multiline state
+  const [testInput, setTestInput] = useState(`Apple, Banana, Orange\nGrape, Mango, Peach\n\nStrawberry, Melon`);
   const [testOutput, setTestOutput] = useState('');
 
   useEffect(() => {
@@ -110,9 +115,10 @@ export default function SettingsModal({
       setTestOutput(testInput);
       return;
     }
+    const effectiveFlags = (actionFlags.trim() || 'gm').toLowerCase();
     try {
-      const regex = new RegExp(actionPattern, actionFlags || 'g');
-      // Format escaped newlines in replacement
+      const regex = new RegExp(actionPattern, effectiveFlags);
+      // Format escaped newlines and tabs in replacement
       const rep = actionReplacement.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
       const res = testInput.replace(regex, rep);
       setTestOutput(res);
@@ -139,8 +145,10 @@ export default function SettingsModal({
       return;
     }
 
+    const effectiveFlags = (actionFlags.trim() || 'gm').toLowerCase();
+
     try {
-      new RegExp(actionPattern, actionFlags);
+      new RegExp(actionPattern, effectiveFlags);
     } catch (err) {
       showToast(`正規表現が無効です: ${err.message}`);
       return;
@@ -152,7 +160,7 @@ export default function SettingsModal({
       name: actionName.trim(),
       pattern: actionPattern,
       replacement: actionReplacement,
-      flags: actionFlags || 'g',
+      flags: effectiveFlags,
       type: 'regex'
     };
 
@@ -169,6 +177,7 @@ export default function SettingsModal({
     setActionName('');
     setActionPattern('');
     setActionReplacement('');
+    setActionFlags('gm');
     showToast(editingIndex !== null ? 'アクションを更新しました' : 'アクションを追加しました');
   };
 
@@ -178,7 +187,7 @@ export default function SettingsModal({
       setActionName(act.name);
       setActionPattern(act.pattern);
       setActionReplacement(act.replacement);
-      setActionFlags(act.flags || 'g');
+      setActionFlags((act.flags || 'gm').toLowerCase());
       setEditingIndex(index);
     }
   };
@@ -355,15 +364,32 @@ export default function SettingsModal({
                       />
                     </div>
                     <div className="form-field">
-                      <label>フラグ (flags)</label>
+                      <div className="form-label-with-help">
+                        <label>フラグ (flags)</label>
+                        <button 
+                          type="button" 
+                          className="btn-flag-help-toggle" 
+                          onClick={() => setShowFlagHelp(!showFlagHelp)}
+                          title="フラグの説明と設定例を見る"
+                        >
+                          <HelpCircle size={13} />
+                          <span>フラグ一覧・設定例</span>
+                          {showFlagHelp ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        </button>
+                      </div>
                       <input 
                         type="text" 
                         className="form-input code-font" 
-                        placeholder="g, gm, gi など"
+                        placeholder="例: gm (全行置換), g, gi"
                         value={actionFlags}
-                        onChange={(e) => setActionFlags(e.target.value)}
+                        onChange={(e) => {
+                          // Automatically convert to lowercase and keep only valid regex flags (g, m, i, s, u, y, d, v)
+                          const sanitized = e.target.value.toLowerCase().replace(/[^gmisudyv]/g, '');
+                          setActionFlags(sanitized);
+                        }}
                       />
                     </div>
+
                     <div className="form-field">
                       <label>正規表現パターン (Pattern)</label>
                       <input 
@@ -386,27 +412,111 @@ export default function SettingsModal({
                     </div>
                   </div>
 
-                  {/* Live Regex Test Box */}
-                  <div className="live-test-box">
-                    <div className="live-test-header">
-                      <Play size={11} />
-                      <span>リアルタイム動作テスト</span>
+                  {/* Flag Help & Cheat Sheet Box */}
+                  {showFlagHelp && (
+                    <div className="flag-guide-box">
+                      <div className="flag-guide-title">
+                        <Info size={13} />
+                        <span>フラグの意味とおすすめの組み合わせ</span>
+                      </div>
+                      <div className="flag-guide-grid">
+                        <div className="flag-guide-item">
+                          <code>g</code>
+                          <div className="flag-item-desc">
+                            <strong>Global (全体置換)</strong>
+                            <span>テキスト全体から一致するすべての箇所を置換</span>
+                          </div>
+                        </div>
+                        <div className="flag-guide-item">
+                          <code>m</code>
+                          <div className="flag-item-desc">
+                            <strong>Multiline (複数行)</strong>
+                            <span><code>^</code>(行頭) と <code>$</code>(行末) を各行ごとに判定</span>
+                          </div>
+                        </div>
+                        <div className="flag-guide-item">
+                          <code>i</code>
+                          <div className="flag-item-desc">
+                            <strong>Ignore Case (大小無視)</strong>
+                            <span>英字の大文字・小文字を区別せず一致</span>
+                          </div>
+                        </div>
+                        <div className="flag-guide-item">
+                          <code>s</code>
+                          <div className="flag-item-desc">
+                            <strong>DotAll (改行一致)</strong>
+                            <span><code>.</code> が改行記号にもマッチするようになる</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flag-preset-chips">
+                        <span className="chips-label">クイック選択:</span>
+                        <button type="button" className={`flag-chip ${actionFlags === 'gm' ? 'active' : ''}`} onClick={() => setActionFlags('gm')}>
+                          <strong>gm</strong> 全行一括置換 (推奨)
+                        </button>
+                        <button type="button" className={`flag-chip ${actionFlags === 'g' ? 'active' : ''}`} onClick={() => setActionFlags('g')}>
+                          <strong>g</strong> 単語の全体置換
+                        </button>
+                        <button type="button" className={`flag-chip ${actionFlags === 'gi' ? 'active' : ''}`} onClick={() => setActionFlags('gi')}>
+                          <strong>gi</strong> 大文字小文字無視
+                        </button>
+                      </div>
                     </div>
-                    <div className="live-test-inputs">
-                      <input 
-                        type="text" 
-                        className="live-input" 
-                        placeholder="テスト入力..."
-                        value={testInput}
-                        onChange={(e) => setTestInput(e.target.value)}
-                      />
-                      <span className="live-arrow">➔</span>
-                      <input 
-                        type="text" 
-                        className="live-output" 
-                        readOnly 
-                        value={testOutput} 
-                      />
+                  )}
+
+                  {/* Live Regex Multiline Test Box */}
+                  <div className="live-test-box multiline-test">
+                    <div className="live-test-header">
+                      <div className="live-test-title">
+                        <Play size={12} />
+                        <span>リアルタイム動作テスト (複数行対応)</span>
+                      </div>
+                      <div className="live-test-presets">
+                        <button 
+                          type="button" 
+                          className="btn-test-sample"
+                          onClick={() => setTestInput(`Apple, Banana, Orange\nGrape, Mango, Peach\n\nStrawberry, Melon`)}
+                          title="カンマ区切り＋空行のサンプル"
+                        >
+                          カンマ・空行例
+                        </button>
+                        <button 
+                          type="button" 
+                          className="btn-test-sample"
+                          onClick={() => setTestInput(`1. 第一行のテキスト\n2. 第二行のテキスト\n3. 第三行のテキスト`)}
+                          title="連番付き複数行のサンプル"
+                        >
+                          連番リスト例
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="live-test-multiline-grid">
+                      <div className="live-pane">
+                        <label htmlFor="live-test-input-textarea" className="live-pane-label">入力テキスト (テスト用)</label>
+                        <textarea 
+                          id="live-test-input-textarea"
+                          aria-label="入力テキスト (テスト用)"
+                          className="live-textarea live-textarea-input"
+                          rows={3}
+                          placeholder="テストするテキストを入力..."
+                          value={testInput}
+                          onChange={(e) => setTestInput(e.target.value)}
+                        />
+                      </div>
+                      <div className="live-pane-divider" aria-hidden="true">➔</div>
+                      <div className="live-pane">
+                        <label htmlFor="live-test-output-textarea" className="live-pane-label">置換結果プレビュー</label>
+                        <textarea 
+                          id="live-test-output-textarea"
+                          aria-label="置換結果プレビュー"
+                          className="live-textarea live-textarea-output"
+                          rows={3}
+                          readOnly 
+                          placeholder="置換結果がリアルタイムに表示されます..."
+                          value={testOutput} 
+                        />
+                      </div>
                     </div>
                   </div>
 
