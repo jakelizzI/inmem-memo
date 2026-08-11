@@ -12,8 +12,17 @@ import {
 export default function RightActionToolbar({ 
   actions, 
   onExecuteAction, 
-  onOpenSettings 
+  onOpenSettings,
+  onOpenSettingsForAction
 }) {
+  const handleOpenCustomAdd = () => {
+    if (onOpenSettings) {
+      onOpenSettings('actions');
+    } else if (onOpenSettingsForAction) {
+      onOpenSettingsForAction();
+    }
+  };
+
   return (
     <aside className="right-action-toolbar" aria-label="Quick Actions">
       <div className="toolbar-header">
@@ -45,7 +54,7 @@ export default function RightActionToolbar({
       <div className="toolbar-footer">
         <button 
           className="action-tool-btn btn-add-action"
-          onClick={() => onOpenSettings('actions')}
+          onClick={handleOpenCustomAdd}
           title="正規表現アクションを追加・編集"
         >
           <Plus size={14} />
