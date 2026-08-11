@@ -795,7 +795,7 @@ export default function SettingsModal({
                     <div className="version-info-row">
                       <span className="version-info-label">ライセンス / ソースコード</span>
                       <a 
-                        href="https://github.com/jakelizzI/InMem_Scratchpad" 
+                        href="https://github.com/jakelizzI/inmem-memo" 
                         target="_blank" 
                         rel="noreferrer"
                         className="version-github-link"
