@@ -56,7 +56,7 @@ export default function SettingsModal({
   const [actionName, setActionName] = useState('');
   const [actionPattern, setActionPattern] = useState('');
   const [actionReplacement, setActionReplacement] = useState('');
-  const [actionFlags, setActionFlags] = useState('g');
+  const [actionFlags, setActionFlags] = useState('gm');
   const [editingIndex, setEditingIndex] = useState(null);
 
   // Live test preview state
@@ -147,12 +147,13 @@ export default function SettingsModal({
     }
 
     const currentActions = localSettings.customActions || [];
+    const normalizedFlags = (actionFlags.trim() || 'gm').toLowerCase();
     const newAction = {
       id: editingIndex !== null ? currentActions[editingIndex].id : `custom-${Date.now()}`,
       name: actionName.trim(),
       pattern: actionPattern,
       replacement: actionReplacement,
-      flags: actionFlags || 'g',
+      flags: normalizedFlags,
       type: 'regex'
     };
 
@@ -169,6 +170,7 @@ export default function SettingsModal({
     setActionName('');
     setActionPattern('');
     setActionReplacement('');
+    setActionFlags('gm');
     showToast(editingIndex !== null ? 'アクションを更新しました' : 'アクションを追加しました');
   };
 
@@ -178,7 +180,7 @@ export default function SettingsModal({
       setActionName(act.name);
       setActionPattern(act.pattern);
       setActionReplacement(act.replacement);
-      setActionFlags(act.flags || 'g');
+      setActionFlags((act.flags || 'gm').toLowerCase());
       setEditingIndex(index);
     }
   };
@@ -359,9 +361,13 @@ export default function SettingsModal({
                       <input 
                         type="text" 
                         className="form-input code-font" 
-                        placeholder="g, gm, gi など"
+                        placeholder="例: gm (全行置換), g, gi"
                         value={actionFlags}
-                        onChange={(e) => setActionFlags(e.target.value)}
+                        onChange={(e) => {
+                          // Automatically convert to lowercase and keep only valid regex flags (g, m, i, s, u, y, d, v)
+                          const sanitized = e.target.value.toLowerCase().replace(/[^gmisudyv]/g, '');
+                          setActionFlags(sanitized);
+                        }}
                       />
                     </div>
                     <div className="form-field">
