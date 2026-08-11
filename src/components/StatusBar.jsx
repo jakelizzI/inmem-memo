@@ -10,7 +10,7 @@ export default function StatusBar({ text }) {
   return (
     <footer className="status-bar">
       <div className="status-left-section">
-        <span className="status-version-badge" title={`InMem Scratchpad v${APP_VERSION}`}>v{APP_VERSION}</span>
+        <span className="status-version-badge" title={`inmem-memo v${APP_VERSION}`}>v{APP_VERSION}</span>
         <div className="status-metrics">
           <div className="metric-item">
             <span>Chars:</span>

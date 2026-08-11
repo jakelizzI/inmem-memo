@@ -292,7 +292,7 @@ export default function SettingsModal({
             </div>
 
             <div className="sidebar-app-info">
-              <span className="sidebar-app-version">InMem Scratchpad v{APP_VERSION}</span>
+              <span className="sidebar-app-version">inmem-memo v{APP_VERSION}</span>
             </div>
           </nav>
 
@@ -786,7 +786,7 @@ export default function SettingsModal({
                   <div className="version-info-body">
                     <div className="version-info-row">
                       <span className="version-info-label">アプリケーション</span>
-                      <span className="version-info-val">InMem Scratchpad</span>
+                      <span className="version-info-val">inmem-memo</span>
                     </div>
                     <div className="version-info-row">
                       <span className="version-info-label">現在のバージョン</span>

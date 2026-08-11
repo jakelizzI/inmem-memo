@@ -125,7 +125,7 @@ async function main() {
     const localBinaryPath = path.join(CACHE_DIR, executable);
 
     if (!fs.existsSync(localBinaryPath)) {
-      console.log(`⚡ Setting up InMem Scratchpad (v${VERSION})...`);
+      console.log(`⚡ Setting up inmem-memo (v${VERSION})...`);
       console.log(`📥 Downloading native package from GitHub Releases...`);
 
       await downloadFile(downloadUrl, localBinaryPath);
@@ -136,7 +136,7 @@ async function main() {
       console.log('✅ Setup complete!');
     }
 
-    console.log('🚀 Launching InMem Scratchpad...');
+    console.log('🚀 Launching inmem-memo...');
 
     if (process.platform === 'win32') {
       const child = spawn(localBinaryPath, [], { detached: true, stdio: 'ignore' });
