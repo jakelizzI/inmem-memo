@@ -34,10 +34,6 @@ export default function Header({
           />
         </div>
         <span className="brand-title">InMem Scratchpad</span>
-        <div className="badge-inmemory" title="アプリを終了するとメモデータは自動的にメモリから破棄されます">
-          <span className="badge-dot"></span>
-          In-Memory Only
-        </div>
       </div>
 
       <div className="header-actions">

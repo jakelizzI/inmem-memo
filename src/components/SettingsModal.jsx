@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { APP_VERSION } from '../constants/version';
 import { 
   Settings, 
   X, 
@@ -22,7 +23,8 @@ import {
   HelpCircle,
   Info,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ExternalLink
 } from 'lucide-react';
 
 const PRESET_SHORTCUTS = [
@@ -235,7 +237,10 @@ export default function SettingsModal({
               <Settings size={18} />
             </div>
             <div>
-              <h3 className="modal-title">環境設定</h3>
+              <div className="modal-title-row">
+                <h3 className="modal-title">環境設定</h3>
+                <span className="modal-version-tag">v{APP_VERSION}</span>
+              </div>
               <p className="modal-subtitle">ショートカット・アクション・外観・エディタのカスタマイズ</p>
             </div>
           </div>
@@ -248,41 +253,47 @@ export default function SettingsModal({
         <div className="modal-main-container">
           {/* Vertical Sidebar Navigation */}
           <nav className="modal-sidebar">
-            <button 
-              className={`sidebar-tab-btn ${activeTab === 'shortcuts' ? 'active' : ''}`}
-              onClick={() => setActiveTab('shortcuts')}
-            >
-              <Keyboard size={15} />
-              <span>ショートカット</span>
-            </button>
-            <button 
-              className={`sidebar-tab-btn ${activeTab === 'actions' ? 'active' : ''}`}
-              onClick={() => setActiveTab('actions')}
-            >
-              <Wand2 size={15} />
-              <span>アクション・正規表現</span>
-            </button>
-            <button 
-              className={`sidebar-tab-btn ${activeTab === 'appearance' ? 'active' : ''}`}
-              onClick={() => setActiveTab('appearance')}
-            >
-              <Palette size={15} />
-              <span>外観・フォント</span>
-            </button>
-            <button 
-              className={`sidebar-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
-              onClick={() => setActiveTab('editor')}
-            >
-              <FileText size={15} />
-              <span>エディタ設定</span>
-            </button>
-            <button 
-              className={`sidebar-tab-btn ${activeTab === 'privacy' ? 'active' : ''}`}
-              onClick={() => setActiveTab('privacy')}
-            >
-              <Power size={15} />
-              <span>メモリ・終了</span>
-            </button>
+            <div className="sidebar-menu-list">
+              <button 
+                className={`sidebar-tab-btn ${activeTab === 'shortcuts' ? 'active' : ''}`}
+                onClick={() => setActiveTab('shortcuts')}
+              >
+                <Keyboard size={15} />
+                <span>ショートカット</span>
+              </button>
+              <button 
+                className={`sidebar-tab-btn ${activeTab === 'actions' ? 'active' : ''}`}
+                onClick={() => setActiveTab('actions')}
+              >
+                <Wand2 size={15} />
+                <span>アクション・正規表現</span>
+              </button>
+              <button 
+                className={`sidebar-tab-btn ${activeTab === 'appearance' ? 'active' : ''}`}
+                onClick={() => setActiveTab('appearance')}
+              >
+                <Palette size={15} />
+                <span>外観・フォント</span>
+              </button>
+              <button 
+                className={`sidebar-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
+                onClick={() => setActiveTab('editor')}
+              >
+                <FileText size={15} />
+                <span>エディタ設定</span>
+              </button>
+              <button 
+                className={`sidebar-tab-btn ${activeTab === 'privacy' ? 'active' : ''}`}
+                onClick={() => setActiveTab('privacy')}
+              >
+                <Power size={15} />
+                <span>メモリ・終了</span>
+              </button>
+            </div>
+
+            <div className="sidebar-app-info">
+              <span className="sidebar-app-version">InMem Scratchpad v{APP_VERSION}</span>
+            </div>
           </nav>
 
           {/* Tab Content Body */}
@@ -764,6 +775,36 @@ export default function SettingsModal({
                     ・<strong>メモ本文テキスト</strong>: ハードディスク・データベース・localStorageには一切書き込まれません。アプリを完全終了すると即座にメモリから完全消滅します。<br />
                     ・<strong>ユーザー設定</strong>: ショートカット・カスタム正規表現・外観テーマ・エディタ設定のみがローカル（localStorage）に安全に保存されます。
                   </p>
+                </div>
+
+                {/* Application Version & Build Info */}
+                <div className="app-version-info-box">
+                  <div className="version-info-header">
+                    <Sparkles size={14} className="version-sparkle-icon" />
+                    <span>バージョン情報</span>
+                  </div>
+                  <div className="version-info-body">
+                    <div className="version-info-row">
+                      <span className="version-info-label">アプリケーション</span>
+                      <span className="version-info-val">InMem Scratchpad</span>
+                    </div>
+                    <div className="version-info-row">
+                      <span className="version-info-label">現在のバージョン</span>
+                      <span className="version-info-badge">v{APP_VERSION}</span>
+                    </div>
+                    <div className="version-info-row">
+                      <span className="version-info-label">ライセンス / ソースコード</span>
+                      <a 
+                        href="https://github.com/jakelizzI/InMem_Scratchpad" 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="version-github-link"
+                      >
+                        <span>GitHub Repository</span>
+                        <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Complete Application Exit Section */}
