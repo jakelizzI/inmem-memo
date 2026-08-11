@@ -1,8 +1,8 @@
-# ⚡ InMem Scratchpad
+# ⚡ inmem-memo
 
 <div align="center">
 
-<img src="src/assets/icon.png" width="128" height="128" alt="InMem Scratchpad Icon" />
+<img src="src/assets/icon.png" width="128" height="128" alt="inmem-memo Icon" />
 
 ### Ultra-Fast, Pure In-Memory Scratchpad Memo Application
 **Instantly launchable and installable via npm / npx across Windows, macOS, and Linux**
@@ -57,7 +57,7 @@ inmem-memo
 
 During development and daily work, we constantly need a temporary place to paste and inspect JSON payloads, perform quick regex string replacements, or jot down transient notes. 
 
-InMem Scratchpad eliminates traditional note management overhead—such as title editing, file naming, folder hierarchies, and disk indexing—in favor of **instant startup speed, pure in-memory security, and ultra-low resource usage** powered by **Tauri v2 + Rust**.
+inmem-memo eliminates traditional note management overhead—such as title editing, file naming, folder hierarchies, and disk indexing—in favor of **instant startup speed, pure in-memory security, and ultra-low resource usage** powered by **Tauri v2 + Rust**.
 
 ---
 
@@ -91,7 +91,7 @@ InMem Scratchpad eliminates traditional note management overhead—such as title
 - **Interactive Font Resizing**:
   - Adjust editor font size via numerical input or interactively via **`Ctrl + MouseWheel`** (Mac: `Cmd + Wheel`) with smooth silent zooming.
 - **Live Markdown Preview**: Toggle between raw text editing and sanitized Markdown rendering with one click (sanitized with DOMPurify).
-- **Status Bar & UI Version Display**: Real-time character, word, and line count metrics along with bottom-left version badge (`v1.2.0`).
+- **Status Bar & UI Version Display**: Real-time character, word, and line count metrics along with bottom-left version badge (`v1.2.1`).
 
 ### 4. 📑 2-Column Sidebar Settings Modal
 - Redesigned from horizontal tabs into a **macOS / VS Code style 2-column sidebar navigation** layout.

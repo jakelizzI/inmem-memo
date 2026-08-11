@@ -29,11 +29,11 @@ export default function Header({
         <div className="brand-icon-wrapper">
           <img 
             src={brandLogoImg} 
-            alt="InMem Scratchpad Icon" 
+            alt="inmem-memo Icon" 
             className="brand-app-icon"
           />
         </div>
-        <span className="brand-title">InMem Scratchpad</span>
+        <span className="brand-title">inmem-memo</span>
       </div>
 
       <div className="header-actions">

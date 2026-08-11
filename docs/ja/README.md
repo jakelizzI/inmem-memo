@@ -1,10 +1,10 @@
-# ⚡ InMem Scratchpad (日本語版ドキュメント)
+# ⚡ inmem-memo (日本語版ドキュメント)
 
 > [English Version / 英語版 README はこちら](../../README.md)
 
 <div align="center">
 
-<img src="../../src/assets/icon.png" width="128" height="128" alt="InMem Scratchpad Icon" />
+<img src="../../src/assets/icon.png" width="128" height="128" alt="inmem-memo Icon" />
 
 ### 超高速・完全インメモリ型スクラッチパッド メモアプリケーション
 **npm / npx で即座に起動・インストール可能（Windows / macOS / Linux マルチプラットフォーム対応）**
@@ -89,7 +89,7 @@ inmem-memo
 - **文字サイズの伸縮**:
   - 設定画面での数値入力、および **`Ctrl + マウスホイール`**（Mac: `Cmd + Wheel`）によるサイレントな滑らかズームに対応。
 - **Markdown プレビュー**: `Preview` ボタンでエディタとレンダリング表示をシームレスに切り替え（DOMPurify による XSS 対策済み）。
-- **リアルタイムメトリクス**: ステータスバーに文字数・単語数・行数およびバージョン（`v1.2.0`）を表示。
+- **リアルタイムメトリクス**: ステータスバーに文字数・単語数・行数およびバージョン（`v1.2.1`）を表示。
 
 ### 4. 📑 2カラム縦並びサイドバー設定画面
 - 設定モーダルを横スクロール式から **macOS / VS Code スタイルの左側縦並びサイドバー（2カラム）** に刷新。
