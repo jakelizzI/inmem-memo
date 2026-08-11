@@ -9,27 +9,27 @@ export default function StatusBar({ text }) {
 
   return (
     <footer className="status-bar">
-      <div className="status-metrics">
-        <div className="metric-item">
-          <span>Chars:</span>
-          <span className="metric-value">{chars}</span>
-        </div>
-        <div className="metric-item">
-          <span>Words:</span>
-          <span className="metric-value">{words}</span>
-        </div>
-        <div className="metric-item">
-          <span>Lines:</span>
-          <span className="metric-value">{lines}</span>
+      <div className="status-left-section">
+        <span className="status-version-badge" title={`InMem Scratchpad v${APP_VERSION}`}>v{APP_VERSION}</span>
+        <div className="status-metrics">
+          <div className="metric-item">
+            <span>Chars:</span>
+            <span className="metric-value">{chars}</span>
+          </div>
+          <div className="metric-item">
+            <span>Words:</span>
+            <span className="metric-value">{words}</span>
+          </div>
+          <div className="metric-item">
+            <span>Lines:</span>
+            <span className="metric-value">{lines}</span>
+          </div>
         </div>
       </div>
 
-      <div className="status-right-section">
-        <div className="status-warning">
-          <ShieldCheck size={13} style={{ color: 'var(--accent-emerald)' }} />
-          <span>No disk persistence — Memory only</span>
-        </div>
-        <span className="status-version">v{APP_VERSION}</span>
+      <div className="status-warning">
+        <ShieldCheck size={13} style={{ color: 'var(--accent-emerald)' }} />
+        <span>No disk persistence — Memory only</span>
       </div>
     </footer>
   );

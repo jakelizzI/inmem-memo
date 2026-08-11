@@ -1,6 +1,5 @@
 import React from 'react';
 import brandLogoImg from '../assets/icon.png';
-import { APP_VERSION } from '../constants/version';
 import { 
   Copy, 
   Trash2, 
@@ -35,11 +34,6 @@ export default function Header({
           />
         </div>
         <span className="brand-title">InMem Scratchpad</span>
-        <span className="brand-version-badge" title={`InMem Scratchpad v${APP_VERSION}`}>v{APP_VERSION}</span>
-        <div className="badge-inmemory" title="アプリを終了するとメモデータは自動的にメモリから破棄されます">
-          <span className="badge-dot"></span>
-          In-Memory Only
-        </div>
       </div>
 
       <div className="header-actions">
