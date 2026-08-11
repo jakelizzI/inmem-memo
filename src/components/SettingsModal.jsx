@@ -115,9 +115,10 @@ export default function SettingsModal({
       setTestOutput(testInput);
       return;
     }
+    const effectiveFlags = (actionFlags.trim() || 'gm').toLowerCase();
     try {
-      const regex = new RegExp(actionPattern, actionFlags || 'g');
-      // Format escaped newlines in replacement
+      const regex = new RegExp(actionPattern, effectiveFlags);
+      // Format escaped newlines and tabs in replacement
       const rep = actionReplacement.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
       const res = testInput.replace(regex, rep);
       setTestOutput(res);
@@ -144,21 +145,22 @@ export default function SettingsModal({
       return;
     }
 
+    const effectiveFlags = (actionFlags.trim() || 'gm').toLowerCase();
+
     try {
-      new RegExp(actionPattern, actionFlags);
+      new RegExp(actionPattern, effectiveFlags);
     } catch (err) {
       showToast(`正規表現が無効です: ${err.message}`);
       return;
     }
 
     const currentActions = localSettings.customActions || [];
-    const normalizedFlags = (actionFlags.trim() || 'gm').toLowerCase();
     const newAction = {
       id: editingIndex !== null ? currentActions[editingIndex].id : `custom-${Date.now()}`,
       name: actionName.trim(),
       pattern: actionPattern,
       replacement: actionReplacement,
-      flags: normalizedFlags,
+      flags: effectiveFlags,
       type: 'regex'
     };
 
@@ -491,8 +493,10 @@ export default function SettingsModal({
 
                     <div className="live-test-multiline-grid">
                       <div className="live-pane">
-                        <span className="live-pane-label">入力テキスト (テスト用)</span>
+                        <label htmlFor="live-test-input-textarea" className="live-pane-label">入力テキスト (テスト用)</label>
                         <textarea 
+                          id="live-test-input-textarea"
+                          aria-label="入力テキスト (テスト用)"
                           className="live-textarea live-textarea-input"
                           rows={3}
                           placeholder="テストするテキストを入力..."
@@ -500,10 +504,12 @@ export default function SettingsModal({
                           onChange={(e) => setTestInput(e.target.value)}
                         />
                       </div>
-                      <div className="live-pane-divider">➔</div>
+                      <div className="live-pane-divider" aria-hidden="true">➔</div>
                       <div className="live-pane">
-                        <span className="live-pane-label">置換結果プレビュー</span>
+                        <label htmlFor="live-test-output-textarea" className="live-pane-label">置換結果プレビュー</label>
                         <textarea 
+                          id="live-test-output-textarea"
+                          aria-label="置換結果プレビュー"
                           className="live-textarea live-textarea-output"
                           rows={3}
                           readOnly 
