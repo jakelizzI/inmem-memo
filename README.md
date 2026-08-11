@@ -10,7 +10,7 @@
 [![npm version](https://img.shields.io/npm/v/inmem-memo.svg?style=flat-square&color=cb3837)](https://www.npmjs.com/package/inmem-memo)
 [![Framework: Tauri v2](https://img.shields.io/badge/Framework-Tauri%20v2.0-6366f1.svg?style=flat-square&logo=tauri&logoColor=white)](https://v2.tauri.app/)
 [![Frontend: React 18](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Vite%205-61dafb.svg?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
-[![Storage: In-Memory Only](https://img.shields.io/badge/Storage-In--Memory%20Only-f59e0b.svg?style=flat-square)](https://github.com/)
+[![Storage: In-Memory Only](https://img.shields.io/badge/Storage-In--Memory%20Only-f59e0b.svg?style=flat-square)](https://github.com/jakelizzI/inmem-memo)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981.svg?style=flat-square)](LICENSE)
 
 <br />
@@ -64,8 +64,9 @@ InMem Scratchpad eliminates traditional note management overhead—such as title
 ## 🌟 Key Features
 
 ### 1. 🛡️ Pure In-Memory Security Policy
-- **Zero Disk Persistence for Memo Text**: Note text is kept purely in RAM. It is never written to disk, databases, or `localStorage`.
+- **Zero Disk Persistence for Memo Text**: Note text is kept strictly in RAM. It is never written to disk, databases, or `localStorage`.
 - **Complete Erasure on Process Exit**: Terminating the application (via "Quit App" in settings or tray menu) immediately releases all allocated memory back to the OS.
+- **Robust macOS & Multi-Platform Process Termination**: Guaranteed process exit via `std::process::exit(0)` ensuring full memory cleanup across Windows, macOS, and Linux.
 - **Unload Guard**: Built-in confirmation prompt to prevent accidental data loss while typing.
 
 ### 2. ⚡ Right Quick-Action Toolbar (JSON Format & Regex Replacements)
@@ -73,7 +74,8 @@ InMem Scratchpad eliminates traditional note management overhead—such as title
   - Permanently pinned at the top. Instantly prettifies unformatted JSON payloads with clean 2-space indentation.
 - **Custom Regular Expression Actions**:
   - Add, edit, test, and save frequently used regex replacement rules via the Settings modal.
-  - **Live Preview Testing**: Interactive sandbox inside the Settings modal to verify pattern replacements in real time.
+  - **Interactive Regex Flags Cheat Sheet & Help Guide**: Clear explanations for `g` (global), `m` (multiline), `i` (case-insensitive), and `s` (dot-all) with one-click quick chips (`gm`, `g`, `gi`).
+  - **Multiline Real-Time Testing Sandbox**: 2-pane interactive preview (input text ➔ live replacement output) with sample preset buttons to verify pattern replacements across multiple lines.
   - **One-Click Presets**:
     - "Clean Empty Lines" (`^\s*$\n` ➔ `""`)
     - "Trim Trailing Spaces" (`[ \t]+$` ➔ `""`)
@@ -81,32 +83,31 @@ InMem Scratchpad eliminates traditional note management overhead—such as title
     - "Strip HTML Tags" (`<[^>]+>` ➔ `""`)
     - "Collapse Multiple Spaces" (`[ \t]+` ➔ `" "`)
 
-### 3. ↩️ Full `Ctrl + Z` (Undo) & `Ctrl + Y` (Redo) History Stack
+### 3. 🎨 Modern UI & 3 Themes (Midnight / OLED / Clean Light)
+- **3 Curated Color Themes**:
+  - **Midnight Dark**: Deep gradient dark mode for night work.
+  - **OLED Pure Black**: High-contrast, power-saving true black mode.
+  - **Clean Light**: Crisp, bright light mode with soft shadows and refined readability.
+- **Interactive Font Resizing**:
+  - Adjust editor font size via numerical input or interactively via **`Ctrl + MouseWheel`** (Mac: `Cmd + Wheel`) with smooth silent zooming.
+- **Live Markdown Preview**: Toggle between raw text editing and sanitized Markdown rendering with one click (sanitized with DOMPurify).
+- **Status Bar & UI Version Display**: Real-time character, word, and line count metrics along with bottom-left version badge (`v1.2.0`).
+
+### 4. 📑 2-Column Sidebar Settings Modal
+- Redesigned from horizontal tabs into a **macOS / VS Code style 2-column sidebar navigation** layout.
+- Easily customize shortcuts, regex actions, appearance themes, font sizes, editor preferences, and process termination in dedicated sections.
+
+### 5. ↩️ Full `Ctrl + Z` (Undo) & `Ctrl + Y` (Redo) History Stack
 - Even after executing batch transformations (JSON formatting or regex replacements), pressing **`Ctrl + Z` (Mac: `Cmd + Z`)** instantly restores the exact previous text state.
 - Redo anytime using **`Ctrl + Y`** or **`Ctrl + Shift + Z` (Mac: `Cmd + Shift + Z`)**.
 - Visual Undo/Redo icon buttons located directly in the header bar.
 
-### 4. ⌨️ Global Shortcut & System Tray Residency
+### 6. ⌨️ Global Shortcut & System Tray Residency
 - **Background Tray Standby**: Clicking the window close button (`×`) minimizes the app directly to the system tray (Windows) or menu bar (macOS).
 - **Instant Hotkey Summon**:
   - Press the global hotkey from any active window (IDE, browser, terminal) to instantly toggle the scratchpad on top of your screen.
   - Default: `Ctrl + Shift + M` (Mac: `Cmd + Shift + M`).
   - Customizable in Settings with an interactive key recorder.
-
-### 5. ⚙️ Local Settings Persistence & Complete App Exit
-- While memo text remains strictly in-memory, your **user preferences are safely persisted to `localStorage`**:
-  - Global shortcut key
-  - Custom regex action library
-  - Theme choice (Midnight Dark / OLED Pure Black)
-  - Editor preferences (Font size, Tab width, Word wrap)
-- **Complete Application Exit**:
-  - Easily terminate the background tray process and completely free memory with the "Quit App" button in Settings.
-
-### 6. 🎨 Modern Dark Glassmorphism UI & Markdown Preview
-- **Aesthetic Dark Mode**: Curated color palette with fluid micro-animations.
-- **Live Markdown Preview**: Toggle between raw text editing and formatted Markdown rendering with one click.
-- **Live Statistics**: Status bar displaying real-time character, word, and line counts.
-- **Quick Operations**: Copy all (`Copy`), export file (`Export .md`), and clear (`Clear`).
 
 ---
 
@@ -115,6 +116,7 @@ InMem Scratchpad eliminates traditional note management overhead—such as title
 | Shortcut | Action |
 |---|---|
 | `Ctrl + Shift + M` (Mac: `Cmd + Shift + M`) | **Global Summon** (Toggle window visibility from anywhere) |
+| `Ctrl + MouseWheel` (Mac: `Cmd + Wheel`) | **Interactive Font Resize** (Zoom editor text seamlessly) |
 | `Ctrl + Z` (Mac: `Cmd + Z`) | **Undo** (Revert text changes, JSON formatting, or regex replacements) |
 | `Ctrl + Y` / `Ctrl + Shift + Z` | **Redo** (Re-apply reverted changes) |
 | `Tab` | Insert indentation (2 or 4 spaces) |
@@ -128,17 +130,21 @@ InMem Scratchpad eliminates traditional note management overhead—such as title
   - `tauri-plugin-global-shortcut`: System-wide hotkey listener
   - `tray-icon`: System tray / menu bar residency
   - `include_image!`: Native embedded icon binaries
-- **Frontend**: [React 18](https://react.dev/) + [Vite 5](https://vitejs.dev/) + [Lucide Icons](https://lucide.dev/)
+- **Frontend**: [React 18](https://react.dev/) + [Vite 5](https://vitejs.dev/) + [Lucide Icons](https://lucide.dev/) + [DOMPurify](https://github.com/cure53/DOMPurify)
 - **Styling**: Vanilla CSS (Modern CSS Variables, Glassmorphism, Responsive Grid/Flexbox)
 - **Distribution**:
-  - npm: Automated platform-resolving CLI runner (`inmem-memo`)
-  - GitHub Actions: Multi-platform automated builds for Windows (`.exe`), macOS (`.dmg`), and Linux (`.AppImage`)
+  - npm: Automated platform-resolving CLI runner (`inmem-memo`) with Sigstore Provenance
+  - GitHub Actions: Multi-platform automated builds for Windows (`.exe`, `.msi`), macOS (`.dmg`), and Linux (`.AppImage`, `.deb`, `.rpm`)
 
 ---
 
 ## 💻 Local Development & Building from Source
 
 ```powershell
+# Clone repository
+git clone https://github.com/jakelizzI/inmem-memo.git
+cd inmem-memo
+
 # Install frontend dependencies
 npm install
 
@@ -156,4 +162,4 @@ npm run tauri build
 
 ## 📄 License
 
-[MIT License](LICENSE) © 2026 InMem Scratchpad Project
+[MIT License](LICENSE) © 2026 [jakelizzI](https://github.com/jakelizzI/inmem-memo)
