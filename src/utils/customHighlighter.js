@@ -192,9 +192,9 @@ export const customJsParser = {
       return 'number';
     }
 
-    // Function calls e.g. foo( -> function(variableName)
+    // Function calls e.g. foo( -> variableName.function
     if (stream.match(/^[\w$]+(?=\s*\()/)) {
-      return 'functionName';
+      return 'variableName.function';
     }
 
     // Variable / identifier
@@ -261,6 +261,25 @@ export const customMarkdownLanguage = StreamLanguage.define(customMarkdownParser
 const MAX_FOLD_SCAN_LINES = 1000;
 
 /**
+ * Helper to check if a quote character at index starts a string literal
+ * Avoids treating prose/word apostrophes (e.g. "don't", "it's") as string openers
+ */
+function isStringQuote(char, index, str, inString, stringQuote) {
+  if (index > 0 && str[index - 1] === '\\') return false; // Escaped
+  if (inString) {
+    return char === stringQuote; // Close matching quote
+  }
+  if (char === '"') return true;
+  if (char === "'") {
+    // Only treat single quote as string opener if not immediately preceded by a word character
+    if (index === 0) return true;
+    const prevChar = str[index - 1];
+    return !/[\w\d]/.test(prevChar);
+  }
+  return false;
+}
+
+/**
  * Custom Code Folding Service for JSON, Braces, Arrays, and YAML Indentation
  */
 export const customFoldingService = foldService.of((state, lineStart) => {
@@ -294,7 +313,7 @@ export const customFoldingService = foldService.of((state, lineStart) => {
 
     for (let i = 0; i < restOfFirstLine.length; i++) {
       const char = restOfFirstLine[i];
-      if ((char === '"' || char === "'") && (i === 0 || restOfFirstLine[i - 1] !== '\\')) {
+      if ((char === '"' || char === "'") && isStringQuote(char, i, restOfFirstLine, inString, stringQuote)) {
         if (!inString) { inString = true; stringQuote = char; }
         else if (stringQuote === char) { inString = false; }
         continue;
@@ -319,7 +338,7 @@ export const customFoldingService = foldService.of((state, lineStart) => {
 
       for (let i = 0; i < str.length; i++) {
         const char = str[i];
-        if ((char === '"' || char === "'") && (i === 0 || str[i - 1] !== '\\')) {
+        if ((char === '"' || char === "'") && isStringQuote(char, i, str, inString, stringQuote)) {
           if (!inString) { inString = true; stringQuote = char; }
           else if (stringQuote === char) { inString = false; }
           continue;
