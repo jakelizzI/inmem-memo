@@ -11,7 +11,7 @@ export function detectLanguage(text) {
   const trimmed = text.trim();
   if (!trimmed) return 'plain';
 
-  // 1. JSON detection: starts with { or [ and looks like valid or partial JSON
+  // 1. JSON detection: starts and ends with { } or [ ] or clear JSON key-value
   if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
       (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
     return 'json';
@@ -20,23 +20,30 @@ export function detectLanguage(text) {
     return 'json';
   }
 
-  // 2. YAML detection: key: value with indentation or list dashes, without braces
-  if (!trimmed.startsWith('{') && !trimmed.startsWith('[') &&
-      (/^[\w\d_-]+\s*:\s*(?:[^\n]+)?$/m.test(trimmed) || /^-\s+[\w\d_-]+/m.test(trimmed))) {
-    // Exclude simple Markdown lists if there are headers
-    if (!/^#{1,6}\s+/m.test(trimmed)) {
-      return 'yaml';
-    }
-  }
-
-  // 3. Markdown detection: headers #, code blocks ```, or markdown links
-  if (/^#{1,6}\s+/m.test(trimmed) || /```[\s\S]*?```/m.test(trimmed) || /\[.+?\]\(.+?\)/m.test(trimmed)) {
+  // 2. Markdown detection: headers, code blocks, links, or bullet/numbered lists
+  // (Evaluated before YAML to prevent list syntax from being misclassified as YAML)
+  if (/^#{1,6}\s+/m.test(trimmed) || 
+      /```[\s\S]*?```/m.test(trimmed) || 
+      /\[.+?\]\(.+?\)/m.test(trimmed) ||
+      /^(?:[-*+]|\d+\.)\s+\S+/m.test(trimmed)) {
     return 'markdown';
   }
 
-  // 4. JavaScript / TypeScript detection
-  if (/\b(const|let|var|function|import|export|class|async|await|return|if|else)\b/.test(trimmed)) {
+  // 3. JavaScript / TypeScript detection: requires structural signals
+  const hasJsKeywords = /\b(const|let|var|function|import|export|class|async|await|return|if|else)\b/g;
+  const keywordMatches = trimmed.match(hasJsKeywords) || [];
+  const hasArrowFunc = /=>\s*[{\w]/.test(trimmed);
+  const hasImportExport = /^(?:import\s+.+\s+from\s+['"]|export\s+(?:default\s+)?(?:const|let|var|function|class))/m.test(trimmed);
+  const hasFunctionDecl = /function\s+[\w$]+\s*\(/.test(trimmed);
+
+  if (hasImportExport || hasFunctionDecl || hasArrowFunc || keywordMatches.length >= 2) {
     return 'javascript';
+  }
+
+  // 4. YAML detection: key: value pairs with indentation or comment lines
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[') &&
+      (/^[\w\d_-]+\s*:\s*(?:[^\n]+)?$/m.test(trimmed) || /^#\s+\S+/m.test(trimmed))) {
+    return 'yaml';
   }
 
   return 'plain';
@@ -46,7 +53,7 @@ export function detectLanguage(text) {
  * Custom StreamParser for JSON with syntax highlighting
  */
 export const customJsonParser = {
-  token(stream, state) {
+  token(stream) {
     if (stream.eatSpace()) return null;
 
     // String or Key
@@ -185,7 +192,7 @@ export const customJsParser = {
       return 'number';
     }
 
-    // Function calls e.g. foo(
+    // Function calls e.g. foo( -> function(variableName)
     if (stream.match(/^[\w$]+(?=\s*\()/)) {
       return 'functionName';
     }
@@ -249,15 +256,20 @@ export const customJsLanguage = StreamLanguage.define(customJsParser);
 export const customMarkdownLanguage = StreamLanguage.define(customMarkdownParser);
 
 /**
+ * Bounded forward scan budget for performance (max lines to search for matching bracket/fold)
+ */
+const MAX_FOLD_SCAN_LINES = 1000;
+
+/**
  * Custom Code Folding Service for JSON, Braces, Arrays, and YAML Indentation
  */
-export const customFoldingService = foldService.of((state, lineStart, lineEnd) => {
+export const customFoldingService = foldService.of((state, lineStart) => {
   const line = state.doc.lineAt(lineStart);
   const text = line.text;
 
   // 1. Bracket / Brace Folding: { ... } or [ ... ]
-  let openBraceIndex = text.lastIndexOf('{');
-  let openBracketIndex = text.lastIndexOf('[');
+  const openBraceIndex = text.lastIndexOf('{');
+  const openBracketIndex = text.lastIndexOf('[');
 
   let openIndex = -1;
   let closeChar = '';
@@ -271,34 +283,70 @@ export const customFoldingService = foldService.of((state, lineStart, lineEnd) =
 
   if (openIndex !== -1) {
     const from = line.from + openIndex + 1;
-    // Scan subsequent lines for matching closing brace
     let depth = 1;
     const openChar = closeChar === '}' ? '{' : '[';
+    const maxLine = Math.min(state.doc.lines, line.number + MAX_FOLD_SCAN_LINES);
 
-    for (let l = line.number + 1; l <= state.doc.lines; l++) {
+    // Scan rest of current line first
+    const restOfFirstLine = text.slice(openIndex + 1);
+    let inString = false;
+    let stringQuote = '';
+
+    for (let i = 0; i < restOfFirstLine.length; i++) {
+      const char = restOfFirstLine[i];
+      if ((char === '"' || char === "'") && (i === 0 || restOfFirstLine[i - 1] !== '\\')) {
+        if (!inString) { inString = true; stringQuote = char; }
+        else if (stringQuote === char) { inString = false; }
+        continue;
+      }
+      if (inString) continue;
+
+      if (char === openChar) depth++;
+      else if (char === closeChar) {
+        depth--;
+        if (depth === 0) {
+          const to = line.from + openIndex + 1 + i;
+          return from < to ? { from, to } : null;
+        }
+      }
+    }
+
+    // Scan subsequent lines up to budget
+    for (let l = line.number + 1; l <= maxLine; l++) {
       const nextLine = state.doc.line(l);
       const str = nextLine.text;
+      inString = false;
+
       for (let i = 0; i < str.length; i++) {
-        if (str[i] === openChar) depth++;
-        else if (str[i] === closeChar) {
+        const char = str[i];
+        if ((char === '"' || char === "'") && (i === 0 || str[i - 1] !== '\\')) {
+          if (!inString) { inString = true; stringQuote = char; }
+          else if (stringQuote === char) { inString = false; }
+          continue;
+        }
+        if (inString) continue;
+
+        if (char === openChar) depth++;
+        else if (char === closeChar) {
           depth--;
           if (depth === 0) {
             const to = nextLine.from + i;
-            if (from < to) {
-              return { from, to };
-            }
+            return from < to ? { from, to } : null;
           }
         }
       }
     }
   }
 
-  // 2. YAML / Indentation Folding: If next lines have deeper indentation
-  const indentMatch = text.match(/^(\s*)/);
-  const currentIndent = indentMatch ? indentMatch[1].length : 0;
-  if (text.trim().length > 0 && line.number < state.doc.lines) {
+  // 2. Indentation-based Folding (Active for YAML / Plain / Indented structures)
+  const isBracketLanguage = text.includes('{') || text.includes('}') || text.includes(';');
+  if (!isBracketLanguage && text.trim().length > 0 && line.number < state.doc.lines) {
+    const indentMatch = text.match(/^(\s*)/);
+    const currentIndent = indentMatch ? indentMatch[1].length : 0;
+    const maxLine = Math.min(state.doc.lines, line.number + MAX_FOLD_SCAN_LINES);
     let endLine = line.number;
-    for (let l = line.number + 1; l <= state.doc.lines; l++) {
+
+    for (let l = line.number + 1; l <= maxLine; l++) {
       const nextLine = state.doc.line(l);
       if (!nextLine.text.trim()) continue; // Skip blank lines
       const nextIndentMatch = nextLine.text.match(/^(\s*)/);
@@ -312,7 +360,7 @@ export const customFoldingService = foldService.of((state, lineStart, lineEnd) =
     if (endLine > line.number) {
       const from = line.to;
       const to = state.doc.line(endLine).to;
-      return { from, to };
+      return from < to ? { from, to } : null;
     }
   }
 
@@ -331,7 +379,11 @@ export const customDarkHighlightStyle = HighlightStyle.define([
   { tag: t.keyword, color: '#f472b6', fontWeight: '600' },     // Pink for Keywords
   { tag: t.comment, color: '#64748b', fontStyle: 'italic' },   // Slate for Comments
   { tag: t.function(t.variableName), color: '#60a5fa' },       // Blue for Functions
+  { tag: t.variableName, color: '#f3f4f6' },                   // Light for JS Identifiers
+  { tag: t.atom, color: '#38bdf8' },                           // Cyan for YAML Scalars
   { tag: t.heading, color: '#38bdf8', fontWeight: 'bold' },    // Cyan for MD Headers
+  { tag: t.link, color: '#818cf8', textDecoration: 'underline' }, // Indigo for Links
+  { tag: t.strong, fontWeight: 'bold', color: '#f8fafc' },     // Bold for Strong
   { tag: t.bracket, color: '#cbd5e1' },                        // Light Slate for Brackets
   { tag: t.punctuation, color: '#94a3b8' }                     // Slate for Punctuation
 ]);
@@ -345,7 +397,11 @@ export const customLightHighlightStyle = HighlightStyle.define([
   { tag: t.keyword, color: '#db2777', fontWeight: '600' },     // Dark Pink for Keywords
   { tag: t.comment, color: '#94a3b8', fontStyle: 'italic' },   // Light Slate for Comments
   { tag: t.function(t.variableName), color: '#2563eb' },       // Blue for Functions
+  { tag: t.variableName, color: '#1e293b' },                   // Dark Slate for JS Identifiers
+  { tag: t.atom, color: '#0284c7' },                           // Dark Cyan for YAML Scalars
   { tag: t.heading, color: '#0284c7', fontWeight: 'bold' },    // Dark Cyan for MD Headers
+  { tag: t.link, color: '#4f46e5', textDecoration: 'underline' }, // Indigo for Links
+  { tag: t.strong, fontWeight: 'bold', color: '#0f172a' },     // Bold for Strong
   { tag: t.bracket, color: '#475569' },                        // Slate for Brackets
   { tag: t.punctuation, color: '#64748b' }                     // Slate for Punctuation
 ]);

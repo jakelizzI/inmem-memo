@@ -269,6 +269,8 @@ export default function App() {
           theme={settings.theme || 'midnight'}
           currentFontSize={settings.fontSize || 15}
           onFontSizeChange={handleFontSizeChange}
+          onUndo={undo}
+          onRedo={redo}
         />
 
         <RightActionToolbar

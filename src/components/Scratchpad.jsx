@@ -11,7 +11,8 @@ import {
 import { 
   syntaxHighlighting, 
   foldGutter, 
-  codeFolding 
+  codeFolding,
+  indentUnit
 } from '@codemirror/language';
 import { indentWithTab, defaultKeymap } from '@codemirror/commands';
 import { marked } from 'marked';
@@ -40,12 +41,20 @@ export default function Scratchpad({
   syntaxHighlight = true,
   theme = 'midnight',
   currentFontSize = 15,
-  onFontSizeChange
+  onFontSizeChange,
+  onUndo,
+  onRedo
 }) {
   const containerRef = useRef(null);
   const editorHostRef = useRef(null);
   const viewRef = useRef(null);
   const isUpdatingFromPropsRef = useRef(false);
+
+  // Keep references for Undo/Redo in keymap
+  const undoRef = useRef(onUndo);
+  const redoRef = useRef(onRedo);
+  undoRef.current = onUndo;
+  redoRef.current = onRedo;
 
   // Compartments for dynamic reconfiguration
   const compartmentsRef = useRef({
@@ -148,6 +157,42 @@ export default function Scratchpad({
     }, { dark: !isLight });
   };
 
+  // Custom keymap for application Undo/Redo and Tab
+  const customEditorKeymap = useMemo(() => [
+    {
+      key: 'Mod-z',
+      run: () => {
+        if (undoRef.current) {
+          undoRef.current();
+          return true;
+        }
+        return false;
+      }
+    },
+    {
+      key: 'Mod-y',
+      run: () => {
+        if (redoRef.current) {
+          redoRef.current();
+          return true;
+        }
+        return false;
+      }
+    },
+    {
+      key: 'Mod-Shift-z',
+      run: () => {
+        if (redoRef.current) {
+          redoRef.current();
+          return true;
+        }
+        return false;
+      }
+    },
+    indentWithTab,
+    ...defaultKeymap
+  ], []);
+
   // Initialize CodeMirror View
   useEffect(() => {
     if (!editorHostRef.current) return;
@@ -161,13 +206,13 @@ export default function Scratchpad({
         comps.lineNumbers.of(showLineNumbers ? lineNumbers() : []),
         comps.foldGutter.of(enableCodeFolding ? [codeFolding(), foldGutter(), customFoldingService] : []),
         comps.wordWrap.of(wordWrap ? EditorView.lineWrapping : []),
-        comps.tabSize.of(EditorState.tabSize.of(tabSize)),
+        comps.tabSize.of([EditorState.tabSize.of(tabSize), indentUnit.of(' '.repeat(tabSize))]),
         comps.theme.of(getBaseEditorTheme(theme)),
         comps.highlight.of(syntaxHighlight ? syntaxHighlighting(isLight ? customLightHighlightStyle : customDarkHighlightStyle) : []),
         comps.language.of(getLanguageExtension(detectedLang)),
         highlightActiveLine(),
         highlightActiveLineGutter(),
-        keymap.of([indentWithTab, ...defaultKeymap]),
+        keymap.of(customEditorKeymap),
         cmPlaceholder('ここに思いついたメモやアイデアを即座に入力... (アプリを閉じると自動的に消去されます)'),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !isUpdatingFromPropsRef.current) {
@@ -185,7 +230,6 @@ export default function Scratchpad({
 
     viewRef.current = view;
 
-    // Focus editor if not preview
     if (!isPreview) {
       view.focus();
     }
@@ -196,7 +240,7 @@ export default function Scratchpad({
     };
   }, []); // Run once on mount
 
-  // Sync external text changes (Undo/Redo, JSON format, regex actions)
+  // Sync external text changes (Undo/Redo, JSON format, regex actions) with clamped selection
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
@@ -204,14 +248,28 @@ export default function Scratchpad({
     const currentDoc = view.state.doc.toString();
     if (text !== currentDoc) {
       isUpdatingFromPropsRef.current = true;
+      const currentSel = view.state.selection.main;
+      const newLen = (text || '').length;
+      const clampedAnchor = Math.min(currentSel.anchor, newLen);
+      const clampedHead = Math.min(currentSel.head, newLen);
+
       view.dispatch({
-        changes: { from: 0, to: currentDoc.length, insert: text || '' }
+        changes: { from: 0, to: currentDoc.length, insert: text || '' },
+        selection: { anchor: clampedAnchor, head: clampedHead }
       });
       isUpdatingFromPropsRef.current = false;
     }
   }, [text]);
 
-  // Dynamic updates for Language & Syntax Highlighting
+  // Re-measure and restore focus when preview closes
+  useEffect(() => {
+    if (!isPreview && viewRef.current) {
+      viewRef.current.requestMeasure();
+      viewRef.current.focus();
+    }
+  }, [isPreview]);
+
+  // Dynamic updates for Language & Syntax Highlighting & Theme
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
@@ -222,25 +280,6 @@ export default function Scratchpad({
     view.dispatch({
       effects: [
         comps.language.reconfigure(getLanguageExtension(detectedLang)),
-        comps.highlight.reconfigure(
-          syntaxHighlight 
-            ? syntaxHighlighting(isLight ? customLightHighlightStyle : customDarkHighlightStyle) 
-            : []
-        )
-      ]
-    });
-  }, [detectedLang, syntaxHighlight, theme]);
-
-  // Dynamic updates for Theme & Font Size
-  useEffect(() => {
-    const view = viewRef.current;
-    if (!view) return;
-
-    const comps = compartmentsRef.current;
-    const isLight = theme === 'light';
-
-    view.dispatch({
-      effects: [
         comps.theme.reconfigure(getBaseEditorTheme(theme)),
         comps.highlight.reconfigure(
           syntaxHighlight 
@@ -249,7 +288,7 @@ export default function Scratchpad({
         )
       ]
     });
-  }, [theme]);
+  }, [detectedLang, syntaxHighlight, theme]);
 
   // Dynamic updates for Line Numbers
   useEffect(() => {
@@ -280,12 +319,15 @@ export default function Scratchpad({
     });
   }, [wordWrap]);
 
-  // Dynamic updates for Tab Size
+  // Dynamic updates for Tab Size & indentUnit
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
-      effects: compartmentsRef.current.tabSize.reconfigure(EditorState.tabSize.of(tabSize))
+      effects: compartmentsRef.current.tabSize.reconfigure([
+        EditorState.tabSize.of(tabSize),
+        indentUnit.of(' '.repeat(tabSize))
+      ])
     });
   }, [tabSize]);
 
