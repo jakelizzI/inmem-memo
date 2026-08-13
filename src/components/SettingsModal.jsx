@@ -755,8 +755,53 @@ export default function SettingsModal({
                     <input 
                       type="checkbox" 
                       className="custom-toggle"
-                      checked={localSettings.wordWrap}
+                      checked={localSettings.wordWrap !== false}
                       onChange={(e) => setLocalSettings(prev => ({ ...prev, wordWrap: e.target.checked }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="setting-section">
+                  <label className="toggle-row">
+                    <div className="toggle-info">
+                      <span className="toggle-title">行番号の表示 (Line Numbers)</span>
+                      <span className="toggle-desc">エディタ左端に行番号を表示します</span>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      className="custom-toggle"
+                      checked={localSettings.showLineNumbers !== false}
+                      onChange={(e) => setLocalSettings(prev => ({ ...prev, showLineNumbers: e.target.checked }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="setting-section">
+                  <label className="toggle-row">
+                    <div className="toggle-info">
+                      <span className="toggle-title">コードの折りたたみ (Code Folding)</span>
+                      <span className="toggle-desc">JSON・配列・オブジェクト・YAML等の折りたたみアイコンを表示します</span>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      className="custom-toggle"
+                      checked={localSettings.codeFolding !== false}
+                      onChange={(e) => setLocalSettings(prev => ({ ...prev, codeFolding: e.target.checked }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="setting-section">
+                  <label className="toggle-row">
+                    <div className="toggle-info">
+                      <span className="toggle-title">シンタックスハイライト (Syntax Highlighting)</span>
+                      <span className="toggle-desc">JSON、YAML、JavaScript、Markdownの構文を自動色分けします</span>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      className="custom-toggle"
+                      checked={localSettings.syntaxHighlight !== false}
+                      onChange={(e) => setLocalSettings(prev => ({ ...prev, syntaxHighlight: e.target.checked }))}
                     />
                   </label>
                 </div>
