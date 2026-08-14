@@ -139,6 +139,7 @@ fn update_global_shortcut(
 
 #[tauri::command]
 fn exit_app(app: AppHandle) {
+  eprintln!("[inmem-memo] Rust exit_app command received. Triggering application cleanup and process exit...");
   app.cleanup_before_exit();
   std::process::exit(0);
 }
@@ -177,6 +178,7 @@ pub fn run() {
             }
           }
           QUIT_ID => {
+            eprintln!("[inmem-memo] Tray Quit selected. Terminating application process...");
             app.cleanup_before_exit();
             std::process::exit(0);
           }
