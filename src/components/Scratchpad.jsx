@@ -1,6 +1,33 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
+import { EditorState, Compartment } from '@codemirror/state';
+import { 
+  EditorView, 
+  lineNumbers, 
+  highlightActiveLine, 
+  highlightActiveLineGutter, 
+  keymap,
+  placeholder as cmPlaceholder
+} from '@codemirror/view';
+import { 
+  syntaxHighlighting, 
+  foldGutter, 
+  codeFolding,
+  indentUnit
+} from '@codemirror/language';
+import { indentWithTab, defaultKeymap } from '@codemirror/commands';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+
+import {
+  detectLanguage,
+  customJsonLanguage,
+  customYamlLanguage,
+  customJsLanguage,
+  customMarkdownLanguage,
+  customFoldingService,
+  customDarkHighlightStyle,
+  customLightHighlightStyle
+} from '../utils/customHighlighter';
 
 export default function Scratchpad({ 
   text, 
@@ -9,18 +36,304 @@ export default function Scratchpad({
   tabSize = 2, 
   wordWrap = true,
   wheelZoom = true,
+  showLineNumbers = true,
+  codeFolding: enableCodeFolding = true,
+  syntaxHighlight = true,
+  theme = 'midnight',
   currentFontSize = 15,
-  onFontSizeChange
+  onFontSizeChange,
+  onUndo,
+  onRedo
 }) {
   const containerRef = useRef(null);
-  const textareaRef = useRef(null);
+  const editorHostRef = useRef(null);
+  const viewRef = useRef(null);
+  const isUpdatingFromPropsRef = useRef(false);
 
-  // Auto focus on mount
+  // Keep references for Undo/Redo in keymap
+  const undoRef = useRef(onUndo);
+  const redoRef = useRef(onRedo);
+
   useEffect(() => {
-    if (!isPreview && textareaRef.current) {
-      textareaRef.current.focus();
+    undoRef.current = onUndo;
+    redoRef.current = onRedo;
+  }, [onUndo, onRedo]);
+
+  // Compartments for dynamic reconfiguration
+  const compartmentsRef = useRef({
+    language: new Compartment(),
+    theme: new Compartment(),
+    lineNumbers: new Compartment(),
+    foldGutter: new Compartment(),
+    wordWrap: new Compartment(),
+    tabSize: new Compartment(),
+    highlight: new Compartment()
+  });
+
+  // Determine language mode based on current text and syntaxHighlight setting (bounded prefix for perf)
+  const detectedLang = useMemo(() => {
+    if (!syntaxHighlight) return 'plain';
+    return detectLanguage(text ? text.slice(0, 4000) : '');
+  }, [text, syntaxHighlight]);
+
+  // Determine language extension
+  const getLanguageExtension = (lang) => {
+    switch (lang) {
+      case 'json':
+        return customJsonLanguage;
+      case 'yaml':
+        return customYamlLanguage;
+      case 'javascript':
+        return customJsLanguage;
+      case 'markdown':
+        return customMarkdownLanguage;
+      default:
+        return [];
+    }
+  };
+
+  // Custom Base Theme matching CSS Variables
+  const getBaseEditorTheme = (currentTheme) => {
+    const isLight = currentTheme === 'light';
+    return EditorView.theme({
+      '&': {
+        height: '100%',
+        fontSize: 'var(--editor-font-size, 15px)',
+        fontFamily: 'var(--font-mono)',
+        backgroundColor: 'transparent',
+        color: isLight ? '#0f172a' : '#f3f4f6'
+      },
+      '.cm-scroller': {
+        fontFamily: 'inherit',
+        lineHeight: '1.65',
+        overflow: 'auto'
+      },
+      '.cm-content': {
+        padding: '16px 20px',
+        caretColor: isLight ? '#4f46e5' : '#38bdf8'
+      },
+      '.cm-line': {
+        padding: '0 2px'
+      },
+      '.cm-gutters': {
+        backgroundColor: isLight ? '#f1f5f9' : 'rgba(0, 0, 0, 0.25)',
+        color: isLight ? '#94a3b8' : '#64748b',
+        borderRight: `1px solid ${isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)'}`,
+        paddingLeft: '4px',
+        paddingRight: '6px',
+        userSelect: 'none'
+      },
+      '.cm-activeLineGutter': {
+        backgroundColor: isLight ? 'rgba(79, 70, 229, 0.1)' : 'rgba(99, 102, 241, 0.15)',
+        color: isLight ? '#4f46e5' : '#38bdf8',
+        fontWeight: 'bold'
+      },
+      '.cm-activeLine': {
+        backgroundColor: isLight ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.03)'
+      },
+      '.cm-foldGutter .cm-gutterElement': {
+        cursor: 'pointer',
+        padding: '0 4px',
+        color: isLight ? '#64748b' : '#94a3b8',
+        transition: 'color 0.15s ease'
+      },
+      '.cm-foldGutter .cm-gutterElement:hover': {
+        color: isLight ? '#4f46e5' : '#38bdf8'
+      },
+      '.cm-foldPlaceholder': {
+        backgroundColor: isLight ? 'rgba(79, 70, 229, 0.12)' : 'rgba(99, 102, 241, 0.25)',
+        border: `1px solid ${isLight ? 'rgba(79, 70, 229, 0.25)' : 'rgba(99, 102, 241, 0.4)'}`,
+        color: isLight ? '#4f46e5' : '#a5b4fc',
+        borderRadius: '4px',
+        padding: '0 6px',
+        margin: '0 2px',
+        fontSize: '11px',
+        fontFamily: 'var(--font-mono)'
+      },
+      '.cm-selectionBackground, ::selection': {
+        backgroundColor: isLight ? 'rgba(79, 70, 229, 0.2) !important' : 'rgba(99, 102, 241, 0.3) !important'
+      },
+      '.cm-cursor': {
+        borderLeftColor: isLight ? '#4f46e5' : '#38bdf8',
+        borderLeftWidth: '2px'
+      }
+    }, { dark: !isLight });
+  };
+
+  // Custom keymap for application Undo/Redo and Tab
+  const customEditorKeymap = useMemo(() => [
+    {
+      key: 'Mod-z',
+      run: () => {
+        if (undoRef.current) {
+          undoRef.current();
+          return true;
+        }
+        return false;
+      }
+    },
+    {
+      key: 'Mod-y',
+      run: () => {
+        if (redoRef.current) {
+          redoRef.current();
+          return true;
+        }
+        return false;
+      }
+    },
+    {
+      key: 'Mod-Shift-z',
+      run: () => {
+        if (redoRef.current) {
+          redoRef.current();
+          return true;
+        }
+        return false;
+      }
+    },
+    indentWithTab,
+    ...defaultKeymap
+  ], []);
+
+  // Initialize CodeMirror View
+  useEffect(() => {
+    if (!editorHostRef.current) return;
+
+    const comps = compartmentsRef.current;
+    const isLight = theme === 'light';
+
+    const startState = EditorState.create({
+      doc: text || '',
+      extensions: [
+        comps.lineNumbers.of(showLineNumbers ? lineNumbers() : []),
+        comps.foldGutter.of(enableCodeFolding ? [codeFolding(), foldGutter(), customFoldingService] : []),
+        comps.wordWrap.of(wordWrap ? EditorView.lineWrapping : []),
+        comps.tabSize.of([EditorState.tabSize.of(tabSize), indentUnit.of(' '.repeat(tabSize))]),
+        comps.theme.of(getBaseEditorTheme(theme)),
+        comps.highlight.of(syntaxHighlight ? syntaxHighlighting(isLight ? customLightHighlightStyle : customDarkHighlightStyle) : []),
+        comps.language.of(getLanguageExtension(detectedLang)),
+        highlightActiveLine(),
+        highlightActiveLineGutter(),
+        keymap.of(customEditorKeymap),
+        EditorView.contentAttributes.of({ 'aria-label': 'inmem-memo scratchpad editor' }),
+        cmPlaceholder('ここに思いついたメモやアイデアを即座に入力... (アプリを閉じると自動的に消去されます)'),
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged && !isUpdatingFromPropsRef.current) {
+            const newText = update.state.doc.toString();
+            setText(newText);
+          }
+        })
+      ]
+    });
+
+    const view = new EditorView({
+      state: startState,
+      parent: editorHostRef.current
+    });
+
+    viewRef.current = view;
+
+    if (!isPreview) {
+      view.focus();
+    }
+
+    return () => {
+      view.destroy();
+      viewRef.current = null;
+    };
+  }, []); // Run once on mount
+
+  // Sync external text changes (Undo/Redo, JSON format, regex actions) with clamped selection
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const currentDoc = view.state.doc.toString();
+    if (text !== currentDoc) {
+      isUpdatingFromPropsRef.current = true;
+      const currentSel = view.state.selection.main;
+      const newLen = (text || '').length;
+      const clampedAnchor = Math.min(currentSel.anchor, newLen);
+      const clampedHead = Math.min(currentSel.head, newLen);
+
+      view.dispatch({
+        changes: { from: 0, to: currentDoc.length, insert: text || '' },
+        selection: { anchor: clampedAnchor, head: clampedHead }
+      });
+      isUpdatingFromPropsRef.current = false;
+    }
+  }, [text]);
+
+  // Re-measure and restore focus when preview closes
+  useEffect(() => {
+    if (!isPreview && viewRef.current) {
+      viewRef.current.requestMeasure();
+      viewRef.current.focus();
     }
   }, [isPreview]);
+
+  // Dynamic updates for Language & Syntax Highlighting & Theme
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const comps = compartmentsRef.current;
+    const isLight = theme === 'light';
+
+    view.dispatch({
+      effects: [
+        comps.language.reconfigure(getLanguageExtension(detectedLang)),
+        comps.theme.reconfigure(getBaseEditorTheme(theme)),
+        comps.highlight.reconfigure(
+          syntaxHighlight 
+            ? syntaxHighlighting(isLight ? customLightHighlightStyle : customDarkHighlightStyle) 
+            : []
+        )
+      ]
+    });
+  }, [detectedLang, syntaxHighlight, theme]);
+
+  // Dynamic updates for Line Numbers
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: compartmentsRef.current.lineNumbers.reconfigure(showLineNumbers ? lineNumbers() : [])
+    });
+  }, [showLineNumbers]);
+
+  // Dynamic updates for Code Folding
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: compartmentsRef.current.foldGutter.reconfigure(
+        enableCodeFolding ? [codeFolding(), foldGutter(), customFoldingService] : []
+      )
+    });
+  }, [enableCodeFolding]);
+
+  // Dynamic updates for Word Wrap
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: compartmentsRef.current.wordWrap.reconfigure(wordWrap ? EditorView.lineWrapping : [])
+    });
+  }, [wordWrap]);
+
+  // Dynamic updates for Tab Size & indentUnit
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: compartmentsRef.current.tabSize.reconfigure([
+        EditorState.tabSize.of(tabSize),
+        indentUnit.of(' '.repeat(tabSize))
+      ])
+    });
+  }, [tabSize]);
 
   // Handle Ctrl + MouseWheel to change font size
   useEffect(() => {
@@ -55,25 +368,6 @@ export default function Scratchpad({
     return () => el.removeEventListener('wheel', handleWheel);
   }, [wheelZoom, currentFontSize, onFontSizeChange]);
 
-  // Handle Tab key in editor with dynamic tab size
-  const handleKeyDown = (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = e.target.selectionStart;
-      const end = e.target.selectionEnd;
-      const spaces = ' '.repeat(tabSize);
-      const newText = text.substring(0, start) + spaces + text.substring(end);
-      setText(newText);
-
-      // Reset cursor position after React update
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + tabSize;
-        }
-      }, 0);
-    }
-  };
-
   const getParsedMarkdown = () => {
     try {
       const rawHtml = marked.parse(text || '*No content*');
@@ -86,19 +380,14 @@ export default function Scratchpad({
 
   return (
     <main className="editor-container" ref={containerRef}>
-      {!isPreview ? (
-        <div className="textarea-wrapper">
-          <textarea
-            ref={textareaRef}
-            className={`scratchpad-textarea ${!wordWrap ? 'nowrap' : ''}`}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="ここに思いついたメモやアイデアを即座に入力... (アプリを閉じると自動的に消去されます)"
-            spellCheck={false}
-          />
-        </div>
-      ) : (
+      <div 
+        className="editor-host-wrapper" 
+        style={{ display: isPreview ? 'none' : 'block' }}
+      >
+        <div ref={editorHostRef} className="codemirror-editor-host" />
+      </div>
+
+      {isPreview && (
         <div 
           className="markdown-preview"
           dangerouslySetInnerHTML={getParsedMarkdown()}

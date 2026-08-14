@@ -16,6 +16,9 @@ const DEFAULT_SETTINGS = {
   wheelZoom: true,
   tabSize: 2,
   wordWrap: true,
+  showLineNumbers: true,
+  codeFolding: true,
+  syntaxHighlight: true,
   customActions: [
     {
       id: 'clean-empty-lines',
@@ -253,15 +256,21 @@ export default function App() {
 
       {/* Main Workspace Layout (Editor + Right Action Toolbar) */}
       <div className="main-workspace-layout">
-        <Scratchpad
+        <Scratchpad 
           text={text}
           setText={setText}
           isPreview={isPreview}
           tabSize={settings.tabSize || 2}
           wordWrap={settings.wordWrap !== false}
           wheelZoom={settings.wheelZoom ?? true}
+          showLineNumbers={settings.showLineNumbers !== false}
+          codeFolding={settings.codeFolding !== false}
+          syntaxHighlight={settings.syntaxHighlight !== false}
+          theme={settings.theme || 'midnight'}
           currentFontSize={settings.fontSize || 15}
           onFontSizeChange={handleFontSizeChange}
+          onUndo={undo}
+          onRedo={redo}
         />
 
         <RightActionToolbar
@@ -279,7 +288,10 @@ export default function App() {
       </div>
 
       {/* Status Bar */}
-      <StatusBar text={text} />
+      <StatusBar 
+        text={text} 
+        syntaxHighlight={settings.syntaxHighlight !== false} 
+      />
 
       {/* Settings Modal */}
       <SettingsModal
