@@ -70,6 +70,30 @@ export default function SettingsModal({
   const [testInput, setTestInput] = useState(`Apple, Banana, Orange\nGrape, Mango, Peach\n\nStrawberry, Melon`);
   const [testOutput, setTestOutput] = useState('');
 
+  // Inline confirmation state for Quit App (replaces blocking window.confirm)
+  const [isConfirmingQuit, setIsConfirmingQuit] = useState(false);
+  const quitTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (quitTimerRef.current) clearTimeout(quitTimerRef.current);
+    };
+  }, []);
+
+  const handleQuitClick = () => {
+    if (isConfirmingQuit) {
+      if (quitTimerRef.current) clearTimeout(quitTimerRef.current);
+      setIsConfirmingQuit(false);
+      onQuitApp();
+    } else {
+      setIsConfirmingQuit(true);
+      if (quitTimerRef.current) clearTimeout(quitTimerRef.current);
+      quitTimerRef.current = setTimeout(() => {
+        setIsConfirmingQuit(false);
+      }, 4000);
+    }
+  };
+
   useEffect(() => {
     setLocalSettings(settings);
   }, [settings, isOpen]);
@@ -861,15 +885,19 @@ export default function SettingsModal({
                     </span>
                   </div>
                   <button 
-                    className="btn btn-quit-app"
-                    onClick={() => {
-                      if (window.confirm('アプリケーションを完全に終了しますか？\n（※メモリ上のメモデータはすべて破棄されます）')) {
-                        onQuitApp();
-                      }
-                    }}
+                    className={`btn btn-quit-app ${isConfirmingQuit ? 'btn-confirming-quit' : ''}`}
+                    onClick={handleQuitClick}
+                    style={isConfirmingQuit ? { 
+                      backgroundColor: 'var(--accent-rose, #f43f5e)', 
+                      color: '#ffffff', 
+                      borderColor: 'transparent',
+                      fontWeight: 'bold',
+                      animation: 'pulse 1.5s infinite'
+                    } : {}}
+                    title={isConfirmingQuit ? "クリックして即座に終了します" : "アプリを完全終了します"}
                   >
                     <Power size={14} />
-                    <span>アプリを完全終了</span>
+                    <span>{isConfirmingQuit ? '本当に終了しますか？ (再度クリック)' : 'アプリを完全終了'}</span>
                   </button>
                 </div>
               </div>

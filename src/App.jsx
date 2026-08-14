@@ -146,15 +146,18 @@ export default function App() {
   // Complete application exit (Rust command exit_app)
   const handleQuitApp = async () => {
     try {
+      console.log('[inmem-memo] handleQuitApp called, requesting complete process exit...');
       isQuittingRef.current = true;
       if (window.__TAURI_INTERNALS__ || window.__TAURI__) {
         const { invoke } = await import('@tauri-apps/api/core');
+        console.log('[inmem-memo] Invoking Rust exit_app command...');
         await invoke('exit_app');
       } else {
+        console.log('[inmem-memo] Non-tauri browser environment, closing window...');
         window.close();
       }
     } catch (err) {
-      console.error('Failed to exit application:', err);
+      console.error('[inmem-memo] Failed to exit application via invoke:', err);
       window.close();
     }
   };
@@ -207,11 +210,12 @@ export default function App() {
   };
 
   const handleClear = () => {
-    if (!text) return;
-    if (window.confirm('メモの内容を消去しますか？\n（※Ctrl+Zで元に戻せます）')) {
-      setTextImmediate('');
-      showToast('メモを消去しました (Ctrl+Zで復元可能)');
+    if (!text) {
+      showToast('消去する内容がありません');
+      return;
     }
+    setTextImmediate('');
+    showToast('メモを消去しました (Ctrl+Zで復元可能)');
   };
 
   const handleExport = () => {
