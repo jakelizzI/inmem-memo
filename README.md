@@ -83,7 +83,18 @@ inmem-memo eliminates traditional note management overhead—such as title editi
     - "Strip HTML Tags" (`<[^>]+>` ➔ `""`)
     - "Collapse Multiple Spaces" (`[ \t]+` ➔ `" "`)
 
-### 3. 🎨 Modern UI & 3 Themes (Midnight / OLED / Clean Light)
+### 3. 📝 Advanced Lightweight Editor (Line Numbers, Syntax Highlighting & Code Folding)
+- **Line Numbers (ON / OFF Toggle)**:
+  - Clean line number gutter along the left edge with active line highlighting. Toggleable anytime in Settings.
+- **Custom Syntax Highlighting (Zero Bloat)**:
+  - Native, ultra-light regex-based tokenization for **JSON, YAML, JavaScript, and Markdown** tailored to all 3 themes.
+  - Automatic language detection with a real-time status badge (`JSON`, `YAML`, `JS`, `Markdown`, `Plain`) in the status bar.
+- **Inline Code & Block Folding**:
+  - Fold and expand JSON objects `{...}`, arrays `[...]`, and YAML indentation blocks directly in the editor with smooth fold indicators (▼ / ▶).
+- **Tab Width & Indent Unit Configuration**:
+  - Choose between 2-space and 4-space indentation with full `Tab` key insertion support.
+
+### 4. 🎨 Modern UI & 3 Themes (Midnight / OLED / Clean Light)
 - **3 Curated Color Themes**:
   - **Midnight Dark**: Deep gradient dark mode for night work.
   - **OLED Pure Black**: High-contrast, power-saving true black mode.
@@ -91,18 +102,18 @@ inmem-memo eliminates traditional note management overhead—such as title editi
 - **Interactive Font Resizing**:
   - Adjust editor font size via numerical input or interactively via **`Ctrl + MouseWheel`** (Mac: `Cmd + Wheel`) with smooth silent zooming.
 - **Live Markdown Preview**: Toggle between raw text editing and sanitized Markdown rendering with one click (sanitized with DOMPurify).
-- **Status Bar & UI Version Display**: Real-time character, word, and line count metrics along with bottom-left version badge (`v1.2.1`).
+- **Status Bar & UI Version Display**: Real-time character, word, line count metrics, detected language badge, and bottom-left version badge (`v1.3.0`).
 
-### 4. 📑 2-Column Sidebar Settings Modal
+### 5. 📑 2-Column Sidebar Settings Modal
 - Redesigned from horizontal tabs into a **macOS / VS Code style 2-column sidebar navigation** layout.
-- Easily customize shortcuts, regex actions, appearance themes, font sizes, editor preferences, and process termination in dedicated sections.
+- Easily customize shortcuts, regex actions, appearance themes, font sizes, editor preferences (Line Numbers, Folding, Highlighting), and process termination in dedicated sections.
 
-### 5. ↩️ Full `Ctrl + Z` (Undo) & `Ctrl + Y` (Redo) History Stack
+### 6. ↩️ Full `Ctrl + Z` (Undo) & `Ctrl + Y` (Redo) History Stack
 - Even after executing batch transformations (JSON formatting or regex replacements), pressing **`Ctrl + Z` (Mac: `Cmd + Z`)** instantly restores the exact previous text state.
 - Redo anytime using **`Ctrl + Y`** or **`Ctrl + Shift + Z` (Mac: `Cmd + Shift + Z`)**.
 - Visual Undo/Redo icon buttons located directly in the header bar.
 
-### 6. ⌨️ Global Shortcut & System Tray Residency
+### 7. ⌨️ Global Shortcut & System Tray Residency
 - **Background Tray Standby**: Clicking the window close button (`×`) minimizes the app directly to the system tray (Windows) or menu bar (macOS).
 - **Instant Hotkey Summon**:
   - Press the global hotkey from any active window (IDE, browser, terminal) to instantly toggle the scratchpad on top of your screen.
