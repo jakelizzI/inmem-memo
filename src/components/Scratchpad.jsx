@@ -53,8 +53,11 @@ export default function Scratchpad({
   // Keep references for Undo/Redo in keymap
   const undoRef = useRef(onUndo);
   const redoRef = useRef(onRedo);
-  undoRef.current = onUndo;
-  redoRef.current = onRedo;
+
+  useEffect(() => {
+    undoRef.current = onUndo;
+    redoRef.current = onRedo;
+  }, [onUndo, onRedo]);
 
   // Compartments for dynamic reconfiguration
   const compartmentsRef = useRef({
@@ -67,10 +70,10 @@ export default function Scratchpad({
     highlight: new Compartment()
   });
 
-  // Determine language mode based on current text and syntaxHighlight setting
+  // Determine language mode based on current text and syntaxHighlight setting (bounded prefix for perf)
   const detectedLang = useMemo(() => {
     if (!syntaxHighlight) return 'plain';
-    return detectLanguage(text);
+    return detectLanguage(text ? text.slice(0, 4000) : '');
   }, [text, syntaxHighlight]);
 
   // Determine language extension
@@ -213,6 +216,7 @@ export default function Scratchpad({
         highlightActiveLine(),
         highlightActiveLineGutter(),
         keymap.of(customEditorKeymap),
+        EditorView.contentAttributes.of({ 'aria-label': 'inmem-memo scratchpad editor' }),
         cmPlaceholder('ここに思いついたメモやアイデアを即座に入力... (アプリを閉じると自動的に消去されます)'),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !isUpdatingFromPropsRef.current) {
