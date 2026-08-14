@@ -265,7 +265,16 @@ const MAX_FOLD_SCAN_LINES = 1000;
  * Avoids treating prose/word apostrophes (e.g. "don't", "it's") as string openers
  */
 function isStringQuote(char, index, str, inString, stringQuote) {
-  if (index > 0 && str[index - 1] === '\\') return false; // Escaped
+  // Count consecutive backslashes preceding the quote to handle escaped backslashes (e.g. "C:\\")
+  let backslashes = 0;
+  let i = index - 1;
+  while (i >= 0 && str[i] === '\\') {
+    backslashes++;
+    i--;
+  }
+  // Odd number of backslashes means the quote character itself is escaped
+  if (backslashes % 2 === 1) return false;
+
   if (inString) {
     return char === stringQuote; // Close matching quote
   }
