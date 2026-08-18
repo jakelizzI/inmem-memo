@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { APP_VERSION } from '../constants/version';
 import { 
   Settings, 
