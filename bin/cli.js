@@ -97,7 +97,7 @@ async function getDownloadUrlAndExecutable() {
         assetUrl = matched.browser_download_url;
       }
     }
-  } catch (apiErr) {
+  } catch {
     // Fallback to static expected URL
     if (platform === 'win32') {
       assetUrl = `https://github.com/${REPO}/releases/download/v${VERSION}/inmem-memo_${VERSION}_x64-setup.exe`;

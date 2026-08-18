@@ -102,7 +102,7 @@ inmem-memo eliminates traditional note management overhead—such as title editi
 - **Interactive Font Resizing**:
   - Adjust editor font size via numerical input or interactively via **`Ctrl + MouseWheel`** (Mac: `Cmd + Wheel`) with smooth silent zooming.
 - **Live Markdown Preview**: Toggle between raw text editing and sanitized Markdown rendering with one click (sanitized with DOMPurify).
-- **Status Bar & UI Version Display**: Real-time character, word, line count metrics, detected language badge, and bottom-left version badge (`v1.3.2`).
+- **Status Bar & UI Version Display**: Real-time character, word, line count metrics, detected language badge, and bottom-left version badge (`v1.3.3`).
 
 ### 5. 📑 2-Column Sidebar Settings Modal
 - Redesigned from horizontal tabs into a **macOS / VS Code style 2-column sidebar navigation** layout.

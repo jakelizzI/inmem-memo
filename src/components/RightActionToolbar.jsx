@@ -3,10 +3,7 @@ import {
   Code2, 
   Wand2, 
   Plus, 
-  Sparkles, 
-  Scissors, 
-  FileCode, 
-  Layers 
+  Sparkles 
 } from 'lucide-react';
 
 export default function RightActionToolbar({ 
