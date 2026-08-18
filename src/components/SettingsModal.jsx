@@ -14,12 +14,8 @@ import {
   Plus,
   Trash2,
   Edit2,
-  Code2,
   Play,
   Power,
-  ZoomIn,
-  Sun,
-  Moon,
   HelpCircle,
   Info,
   ChevronDown,
@@ -341,7 +337,7 @@ export default function SettingsModal({
                       {isRecording ? (
                         <span className="key-chip-placeholder">割り当てたいキーの組み合わせを押してください...</span>
                       ) : (
-                        localSettings.shortcut.split('+').map((key, i) => (
+                        (localSettings.shortcut || localSettings.globalShortcut || 'CommandOrControl+Shift+M').split('+').map((key, i) => (
                           <kbd key={i} className="key-chip">{key}</kbd>
                         ))
                       )}
@@ -589,7 +585,7 @@ export default function SettingsModal({
                               <span className="action-flags-badge">/{act.flags || 'g'}</span>
                             </div>
                             <div className="action-regex-details">
-                              <code>/{act.pattern}/</code> ➔ <code>"{act.replacement}"</code>
+                              <code>/{act.pattern}/</code> ➔ <code>&quot;{act.replacement}&quot;</code>
                             </div>
                           </div>
                           <div className="action-card-buttons">

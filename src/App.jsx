@@ -138,7 +138,9 @@ export default function App() {
       const updated = { ...prev, fontSize: sizeStr };
       try {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {}
+      } catch (err) {
+        console.warn('[inmem-memo] Failed to persist font size to localStorage:', err);
+      }
       return updated;
     });
   }, []);
