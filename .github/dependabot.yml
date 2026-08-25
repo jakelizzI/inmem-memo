@@ -1,0 +1,39 @@
+# Dependabot configuration for inmem-memo
+# Enables weekly dependency update PRs for npm, cargo, and github-actions
+version: 2
+updates:
+  # 1. Frontend npm dependencies (weekly)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+
+  # 2. Rust Cargo backend dependencies (weekly)
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:30"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps-rs)"
+
+  # 3. GitHub Actions workflow actions (weekly)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
