@@ -1,6 +1,6 @@
 {
   "name": "inmem-memo",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Ultra-Fast In-Memory Scratchpad Memo Application for Windows, macOS, and Linux",
   "type": "module",
   "bin": {
