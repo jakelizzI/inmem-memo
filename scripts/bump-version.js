@@ -6,6 +6,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function replaceFileContent(filePath, regex, replacement, label) {
+  if (!fs.existsSync(filePath)) {
+    console.warn(`File not found, skipping: ${filePath}`);
+    return;
+  }
+  const original = fs.readFileSync(filePath, 'utf8');
+  if (!regex.test(original)) {
+    throw new Error(`Target pattern for ${label} not found in ${filePath}`);
+  }
+  const updated = original.replace(regex, replacement);
+  fs.writeFileSync(filePath, updated, 'utf8');
+}
+
 // 1. Read current version from package.json
 const pkgPath = path.join(rootDir, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
@@ -23,6 +40,7 @@ if (!newVersion) {
 }
 
 console.log(`Bumping version: ${oldVersion} -> ${newVersion}`);
+const escapedOld = escapeRegExp(oldVersion);
 
 // 1. package.json
 pkg.version = newVersion;
@@ -36,46 +54,62 @@ if (fs.existsSync(tauriConfPath)) {
   fs.writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n', 'utf8');
 }
 
-// 3. src-tauri/Cargo.toml
+// 3. src-tauri/Cargo.toml (Match version specifically within [package] section)
 const cargoTomlPath = path.join(rootDir, 'src-tauri', 'Cargo.toml');
-if (fs.existsSync(cargoTomlPath)) {
-  let cargoContent = fs.readFileSync(cargoTomlPath, 'utf8');
-  cargoContent = cargoContent.replace(/^version\s*=\s*"[^"]+"/m, `version = "${newVersion}"`);
-  fs.writeFileSync(cargoTomlPath, cargoContent, 'utf8');
-}
+const cargoPackageRegex = /(\[package\][\s\S]*?^version\s*=\s*")[^"]+(")/m;
+replaceFileContent(
+  cargoTomlPath,
+  cargoPackageRegex,
+  `$1${newVersion}$2`,
+  'Cargo.toml [package] version'
+);
 
 // 4. src/constants/version.js
 const versionJsPath = path.join(rootDir, 'src', 'constants', 'version.js');
-if (fs.existsSync(versionJsPath)) {
-  let versionJs = fs.readFileSync(versionJsPath, 'utf8');
-  versionJs = versionJs.replace(new RegExp(`'${oldVersion}'`, 'g'), `'${newVersion}'`);
-  fs.writeFileSync(versionJsPath, versionJs, 'utf8');
-}
+replaceFileContent(
+  versionJsPath,
+  new RegExp(`'${escapedOld}'`, 'g'),
+  `'${newVersion}'`,
+  'version.js APP_VERSION'
+);
 
 // 5. packaging/winget/inmem-memo.yaml
 const wingetPath = path.join(rootDir, 'packaging', 'winget', 'inmem-memo.yaml');
-if (fs.existsSync(wingetPath)) {
-  let winget = fs.readFileSync(wingetPath, 'utf8');
-  winget = winget.replace(new RegExp(`PackageVersion: ${oldVersion}`, 'g'), `PackageVersion: ${newVersion}`);
-  winget = winget.replace(new RegExp(`/v${oldVersion}/`, 'g'), `/v${newVersion}/`);
-  winget = winget.replace(new RegExp(`_${oldVersion}_`, 'g'), `_${newVersion}_`);
-  fs.writeFileSync(wingetPath, winget, 'utf8');
-}
+replaceFileContent(
+  wingetPath,
+  new RegExp(`PackageVersion: ${escapedOld}`, 'g'),
+  `PackageVersion: ${newVersion}`,
+  'winget PackageVersion'
+);
+replaceFileContent(
+  wingetPath,
+  new RegExp(`/v${escapedOld}/`, 'g'),
+  `/v${newVersion}/`,
+  'winget InstallerUrl tag'
+);
+replaceFileContent(
+  wingetPath,
+  new RegExp(`_${escapedOld}_`, 'g'),
+  `_${newVersion}_`,
+  'winget InstallerUrl filename'
+);
 
 // 6. README.md
 const readmePath = path.join(rootDir, 'README.md');
-if (fs.existsSync(readmePath)) {
-  let readme = fs.readFileSync(readmePath, 'utf8');
-  readme = readme.replace(new RegExp(`\`v${oldVersion}\``, 'g'), `\`v${newVersion}\``);
-  fs.writeFileSync(readmePath, readme, 'utf8');
-}
+replaceFileContent(
+  readmePath,
+  new RegExp(`\`v${escapedOld}\``, 'g'),
+  `\`v${newVersion}\``,
+  'README.md badge'
+);
 
 // 7. docs/ja/README.md
 const jaReadmePath = path.join(rootDir, 'docs', 'ja', 'README.md');
-if (fs.existsSync(jaReadmePath)) {
-  let jaReadme = fs.readFileSync(jaReadmePath, 'utf8');
-  jaReadme = jaReadme.replace(new RegExp(`\`v${oldVersion}\``, 'g'), `\`v${newVersion}\``);
-  fs.writeFileSync(jaReadmePath, jaReadme, 'utf8');
-}
+replaceFileContent(
+  jaReadmePath,
+  new RegExp(`\`v${escapedOld}\``, 'g'),
+  `\`v${newVersion}\``,
+  'docs/ja/README.md badge'
+);
 
 console.log(`Successfully bumped all files to ${newVersion}`);
