@@ -6,10 +6,26 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
+/**
+ * Escapes special characters in a string for safe use in a regular expression.
+ *
+ * @param {string} string - The raw string to escape.
+ * @returns {string} The escaped string safe for RegExp construction.
+ */
 function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Validates and safely replaces content in a target file using a regular expression.
+ * Throws an error if the file exists but the expected pattern is not found.
+ *
+ * @param {string} filePath - Absolute path to the file to modify.
+ * @param {RegExp} regex - Regular expression pattern to search for.
+ * @param {string} replacement - Replacement string or template.
+ * @param {string} label - Human-readable label for logging and error reporting.
+ * @throws {Error} If the target pattern is not found in the file content.
+ */
 function replaceFileContent(filePath, regex, replacement, label) {
   if (!fs.existsSync(filePath)) {
     console.warn(`File not found, skipping: ${filePath}`);
