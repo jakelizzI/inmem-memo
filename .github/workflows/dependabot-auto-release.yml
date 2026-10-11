@@ -6,34 +6,27 @@ on:
     - cron: '0 21 * * 0'
   workflow_dispatch:
 
+# Default workflow permissions: read-only for least privilege
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  actions: write
+  contents: read
 
 jobs:
-  auto-merge-and-release:
+  process-dependabot-prs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      merged_count: ${{ steps.process.outputs.merged_count }}
+      merged_list: ${{ steps.process.outputs.merged_list }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          persist-credentials: true
 
       - name: Process Dependabot Pull Requests
-        id: process_prs
+        id: process
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -41,8 +34,8 @@ jobs:
           PRS_JSON=$(gh pr list --author "app/dependabot" --state open --json number,title,statusCheckRollup)
           echo "Open PRs: $PRS_JSON"
 
+          MERGED_ITEMS=""
           MERGED_COUNT=0
-          MERGED_LIST=""
 
           # Iterate over PRs
           echo "$PRS_JSON" | jq -c '.[]' | while read -r pr; do
@@ -77,34 +70,61 @@ jobs:
             echo "No PRs were merged."
           fi
 
-      - name: Bump Version and Release
-        if: steps.process_prs.outputs.merged_count > 0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Pulling latest main after merges..."
-          git pull origin main
+  bump-and-release:
+    needs: process-dependabot-prs
+    if: needs.process-dependabot-prs.outputs.merged_count > 0
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
 
-          echo "Bumping patch version..."
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Pull latest main after merges
+        run: git pull origin main
+
+      - name: Bump patch version
+        id: bump
+        run: |
           node scripts/bump-version.js
           NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "New Version: $NEW_VERSION"
 
-          echo "Verifying build & tests..."
+      - name: Install dependencies and verify build & tests
+        run: |
           npm ci || npm install
           npm run check
 
-          echo "Committing version bump..."
+      - name: Commit version bump and push tag
+        run: |
+          NEW_VERSION="${{ steps.bump.outputs.version }}"
           git commit -am "chore(release): bump patch version to v${NEW_VERSION} [skip ci]"
           git push origin main
-
-          echo "Creating and pushing tag v${NEW_VERSION}..."
           git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION} - Automated weekly Dependabot release"
           git push origin "v${NEW_VERSION}"
 
-          # Generate bilingual release notes
-          MERGED_ITEMS=$(sed 's/^/- /' merged_prs.txt)
-          
+      - name: Create GitHub Release and Dispatch Publishing Workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_VERSION="${{ steps.bump.outputs.version }}"
+
           cat <<EOF > release_notes.md
           # ⚡ inmem-memo v${NEW_VERSION} (Weekly Automated Maintenance Release)
 
@@ -117,7 +137,7 @@ jobs:
 
           ### 🛠️ Maintenance & Automated Dependency Updates
           - **Automated Dependabot Updates**:
-          ${MERGED_ITEMS}
+            - Synchronized latest compatible dependencies.
           - **Verification & Stability**:
             - All automated test suites (Vitest 10/10) and production builds passed with 100% success.
 
@@ -138,7 +158,7 @@ jobs:
 
           ### 🛠️ メンテナンス & 定期ライブラリ自動更新
           - **定期 Dependabot 依存ライブラリ更新**:
-          ${MERGED_ITEMS}
+            - 互換性テストを通過した最新依存ライブラリを反映いたしました。
           - **動作検証と品質保証**:
             - 全自動スモーク＆ユニットテスト（10/10件）およびプロダクションビルドを 100% パスし、安定性を保証しています。
 

@@ -39,26 +39,21 @@ function writeAtomic(filePath, data) {
 }
 
 /**
- * Validates and safely replaces content in a target file using a regular expression.
- * Writes the result atomically. Throws an error if the expected pattern is not found.
+ * Validates that a pattern exists in a file content and returns the updated string.
  *
- * @param {string} filePath - Absolute path to the file to modify.
+ * @param {string} content - Original file content.
  * @param {RegExp} regex - Regular expression pattern to search for.
  * @param {string} replacement - Replacement string or template.
- * @param {string} label - Human-readable label for logging and error reporting.
- * @throws {Error} If the target pattern is not found in the file content.
+ * @param {string} label - Human-readable label for error reporting.
+ * @param {string} filePath - Path of the file being processed.
+ * @returns {string} Updated content.
+ * @throws {Error} If regex does not match the content.
  */
-function replaceFileContent(filePath, regex, replacement, label) {
-  if (!fs.existsSync(filePath)) {
-    console.warn(`File not found, skipping: ${filePath}`);
-    return;
-  }
-  const original = fs.readFileSync(filePath, 'utf8');
-  if (!regex.test(original)) {
+function prepareReplacement(content, regex, replacement, label, filePath) {
+  if (!regex.test(content)) {
     throw new Error(`Target pattern for ${label} not found in ${filePath}`);
   }
-  const updated = original.replace(regex, replacement);
-  writeAtomic(filePath, updated);
+  return content.replace(regex, replacement);
 }
 
 // 1. Read and validate current version from package.json
@@ -86,74 +81,120 @@ if (newVersion) {
 console.log(`Bumping version: ${oldVersion} -> ${newVersion}`);
 const escapedOld = escapeRegExp(oldVersion);
 
-// 1. package.json
-pkg.version = newVersion;
-writeAtomic(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+// Plan file writes in memory first (all-or-nothing validation)
+const pendingWrites = new Map();
 
-// 2. src-tauri/tauri.conf.json
+// 1. package.json
+const updatedPkg = { ...pkg, version: newVersion };
+pendingWrites.set(pkgPath, JSON.stringify(updatedPkg, null, 2) + '\n');
+
+// 2. package-lock.json
+const lockPath = path.join(rootDir, 'package-lock.json');
+if (fs.existsSync(lockPath)) {
+  const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+  lock.version = newVersion;
+  if (lock.packages && lock.packages['']) {
+    lock.packages[''].version = newVersion;
+  }
+  pendingWrites.set(lockPath, JSON.stringify(lock, null, 2) + '\n');
+}
+
+// 3. src-tauri/tauri.conf.json
 const tauriConfPath = path.join(rootDir, 'src-tauri', 'tauri.conf.json');
 if (fs.existsSync(tauriConfPath)) {
   const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf8'));
   tauriConf.version = newVersion;
-  writeAtomic(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n');
+  pendingWrites.set(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n');
 }
 
-// 3. src-tauri/Cargo.toml (Match version specifically within [package] section)
+// 4. src-tauri/Cargo.toml (Match version specifically within [package] section)
 const cargoTomlPath = path.join(rootDir, 'src-tauri', 'Cargo.toml');
-const cargoPackageRegex = /(\[package\][\s\S]*?^version\s*=\s*")[^"]+(")/m;
-replaceFileContent(
-  cargoTomlPath,
-  cargoPackageRegex,
-  `$1${newVersion}$2`,
-  'Cargo.toml [package] version'
-);
+if (fs.existsSync(cargoTomlPath)) {
+  const original = fs.readFileSync(cargoTomlPath, 'utf8');
+  const cargoPackageRegex = /(\[package\][\s\S]*?^version\s*=\s*")[^"]+(")/m;
+  const updated = prepareReplacement(
+    original,
+    cargoPackageRegex,
+    `$1${newVersion}$2`,
+    'Cargo.toml [package] version',
+    cargoTomlPath
+  );
+  pendingWrites.set(cargoTomlPath, updated);
+}
 
-// 4. src/constants/version.js
+// 5. src/constants/version.js
 const versionJsPath = path.join(rootDir, 'src', 'constants', 'version.js');
-replaceFileContent(
-  versionJsPath,
-  new RegExp(`'${escapedOld}'`, 'g'),
-  `'${newVersion}'`,
-  'version.js APP_VERSION'
-);
+if (fs.existsSync(versionJsPath)) {
+  const original = fs.readFileSync(versionJsPath, 'utf8');
+  const updated = prepareReplacement(
+    original,
+    new RegExp(`'${escapedOld}'`, 'g'),
+    `'${newVersion}'`,
+    'version.js APP_VERSION',
+    versionJsPath
+  );
+  pendingWrites.set(versionJsPath, updated);
+}
 
-// 5. packaging/winget/inmem-memo.yaml
+// 6. packaging/winget/inmem-memo.yaml
 const wingetPath = path.join(rootDir, 'packaging', 'winget', 'inmem-memo.yaml');
-replaceFileContent(
-  wingetPath,
-  new RegExp(`PackageVersion: ${escapedOld}`, 'g'),
-  `PackageVersion: ${newVersion}`,
-  'winget PackageVersion'
-);
-replaceFileContent(
-  wingetPath,
-  new RegExp(`/v${escapedOld}/`, 'g'),
-  `/v${newVersion}/`,
-  'winget InstallerUrl tag'
-);
-replaceFileContent(
-  wingetPath,
-  new RegExp(`_${escapedOld}_`, 'g'),
-  `_${newVersion}_`,
-  'winget InstallerUrl filename'
-);
+if (fs.existsSync(wingetPath)) {
+  let content = fs.readFileSync(wingetPath, 'utf8');
+  content = prepareReplacement(
+    content,
+    new RegExp(`PackageVersion: ${escapedOld}`, 'g'),
+    `PackageVersion: ${newVersion}`,
+    'winget PackageVersion',
+    wingetPath
+  );
+  content = prepareReplacement(
+    content,
+    new RegExp(`/v${escapedOld}/`, 'g'),
+    `/v${newVersion}/`,
+    'winget InstallerUrl tag',
+    wingetPath
+  );
+  content = prepareReplacement(
+    content,
+    new RegExp(`_${escapedOld}_`, 'g'),
+    `_${newVersion}_`,
+    'winget InstallerUrl filename',
+    wingetPath
+  );
+  pendingWrites.set(wingetPath, content);
+}
 
-// 6. README.md
+// 7. README.md
 const readmePath = path.join(rootDir, 'README.md');
-replaceFileContent(
-  readmePath,
-  new RegExp(`\`v${escapedOld}\``, 'g'),
-  `\`v${newVersion}\``,
-  'README.md badge'
-);
+if (fs.existsSync(readmePath)) {
+  const original = fs.readFileSync(readmePath, 'utf8');
+  const updated = prepareReplacement(
+    original,
+    new RegExp(`\`v${escapedOld}\``, 'g'),
+    `\`v${newVersion}\``,
+    'README.md badge',
+    readmePath
+  );
+  pendingWrites.set(readmePath, updated);
+}
 
-// 7. docs/ja/README.md
+// 8. docs/ja/README.md
 const jaReadmePath = path.join(rootDir, 'docs', 'ja', 'README.md');
-replaceFileContent(
-  jaReadmePath,
-  new RegExp(`\`v${escapedOld}\``, 'g'),
-  `\`v${newVersion}\``,
-  'docs/ja/README.md badge'
-);
+if (fs.existsSync(jaReadmePath)) {
+  const original = fs.readFileSync(jaReadmePath, 'utf8');
+  const updated = prepareReplacement(
+    original,
+    new RegExp(`\`v${escapedOld}\``, 'g'),
+    `\`v${newVersion}\``,
+    'docs/ja/README.md badge',
+    jaReadmePath
+  );
+  pendingWrites.set(jaReadmePath, updated);
+}
+
+// Commit all validated file writes atomically
+for (const [targetFile, content] of pendingWrites.entries()) {
+  writeAtomic(targetFile, content);
+}
 
 console.log(`Successfully bumped all files to ${newVersion}`);
