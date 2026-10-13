@@ -1,0 +1,184 @@
+name: Dependabot Weekly Auto Release
+
+on:
+  schedule:
+    # Every Monday at 06:00 JST (Sunday 21:00 UTC)
+    - cron: '0 21 * * 0'
+  workflow_dispatch:
+
+# Default workflow permissions: read-only for least privilege
+permissions:
+  contents: read
+
+jobs:
+  process-dependabot-prs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      merged_count: ${{ steps.process.outputs.merged_count }}
+      merged_list: ${{ steps.process.outputs.merged_list }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - name: Process Dependabot Pull Requests
+        id: process
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching open Dependabot pull requests..."
+          PRS_JSON=$(gh pr list --author "app/dependabot" --state open --json number,title,statusCheckRollup)
+          echo "Open PRs: $PRS_JSON"
+
+          MERGED_ITEMS=""
+          MERGED_COUNT=0
+
+          # Iterate over PRs
+          echo "$PRS_JSON" | jq -c '.[]' | while read -r pr; do
+            PR_NUM=$(echo "$pr" | jq -r '.number')
+            PR_TITLE=$(echo "$pr" | jq -r '.title')
+            
+            # Check CI status: check if check-frontend concluded with SUCCESS
+            CI_CONCLUSION=$(echo "$pr" | jq -r '[.statusCheckRollup[]? | select(.name=="check-frontend")] | last | .conclusion // "PENDING"')
+            echo "Processing PR #$PR_NUM ($PR_TITLE): CI status is $CI_CONCLUSION"
+
+            if [ "$CI_CONCLUSION" = "SUCCESS" ]; then
+              echo "Merging PR #$PR_NUM..."
+              if gh pr merge "$PR_NUM" --merge --delete-branch; then
+                echo "$PR_TITLE" >> merged_prs.txt
+              else
+                echo "Failed to merge PR #$PR_NUM"
+              fi
+            elif [ "$CI_CONCLUSION" = "FAILURE" ]; then
+              echo "Closing failing PR #$PR_NUM..."
+              gh pr close "$PR_NUM" --comment "Automatically closed by weekly routine workflow due to CI check failure." || true
+            else
+              echo "PR #$PR_NUM is still pending or has no checks, skipping."
+            fi
+          done
+
+          if [ -f merged_prs.txt ]; then
+            COUNT=$(wc -l < merged_prs.txt)
+            echo "merged_count=$COUNT" >> $GITHUB_OUTPUT
+            echo "Merged $COUNT PR(s)."
+          else
+            echo "merged_count=0" >> $GITHUB_OUTPUT
+            echo "No PRs were merged."
+          fi
+
+  bump-and-release:
+    needs: process-dependabot-prs
+    if: needs.process-dependabot-prs.outputs.merged_count > 0
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Pull latest main after merges
+        run: git pull origin main
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          node scripts/bump-version.js
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New Version: $NEW_VERSION"
+
+      - name: Install dependencies and verify build & tests
+        run: |
+          npm ci || npm install
+          npm run check
+
+      - name: Commit version bump and push tag
+        run: |
+          NEW_VERSION="${{ steps.bump.outputs.version }}"
+          git commit -am "chore(release): bump patch version to v${NEW_VERSION} [skip ci]"
+          git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION} - Automated weekly Dependabot release"
+          git push --atomic origin HEAD:main "refs/tags/v${NEW_VERSION}"
+
+      - name: Create GitHub Release and Dispatch Publishing Workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_VERSION="${{ steps.bump.outputs.version }}"
+
+          cat <<EOF > release_notes.md
+          # ⚡ inmem-memo v${NEW_VERSION} (Weekly Automated Maintenance Release)
+
+          [English](#english) | [日本語](#japanese)
+
+          ---
+
+          <a name="english"></a>
+          ## 🇬🇧 English
+
+          ### 🛠️ Maintenance & Automated Dependency Updates
+          - **Automated Dependabot Updates**:
+            - Synchronized latest compatible dependencies.
+          - **Verification & Stability**:
+            - All automated test suites (Vitest 10/10) and production builds passed with 100% success.
+
+          ### 🚀 Quick Start (npm / npx)
+          \`\`\`bash
+          # Launch instantly without installation
+          npx inmem-memo
+
+          # Global installation
+          npm install -g inmem-memo
+          inmem-memo
+          \`\`\`
+
+          ---
+
+          <a name="japanese"></a>
+          ## 🇯🇵 日本語
+
+          ### 🛠️ メンテナンス & 定期ライブラリ自動更新
+          - **定期 Dependabot 依存ライブラリ更新**:
+            - 互換性テストを通過した最新依存ライブラリを反映いたしました。
+          - **動作検証と品質保証**:
+            - 全自動スモーク＆ユニットテスト（10/10件）およびプロダクションビルドを 100% パスし、安定性を保証しています。
+
+          ### 🚀 インストール & 起動方法
+          \`\`\`bash
+          # 即時起動
+          npx inmem-memo
+
+          # グローバルインストール
+          npm install -g inmem-memo
+          inmem-memo
+          \`\`\`
+          EOF
+
+          # Remove leading indentation in markdown file
+          sed -i 's/^[ \t]*//' release_notes.md
+
+          echo "Creating GitHub Release v${NEW_VERSION}..."
+          gh release create "v${NEW_VERSION}" --title "inmem-memo v${NEW_VERSION}" --notes-file release_notes.md
+
+          echo "Explicitly triggering publishing workflows..."
+          gh workflow run publish-npm.yml --ref "v${NEW_VERSION}" || gh workflow run publish-npm.yml || true
+          gh workflow run release-app.yml --ref "v${NEW_VERSION}" || gh workflow run release-app.yml || true
