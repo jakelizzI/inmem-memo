@@ -72,10 +72,11 @@ jobs:
 
   bump-and-release:
     needs: process-dependabot-prs
-    if: needs.process-dependabot-prs.outputs.merged_count > 0
+    if: needs.process-dependabot-prs.outputs.merged_count > 0 || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
       actions: write
     steps:
       - name: Checkout repository
@@ -112,12 +113,48 @@ jobs:
           npm ci || npm install
           npm run check
 
-      - name: Commit version bump and push tag
+      - name: Create release PR and merge into main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           NEW_VERSION="${{ steps.bump.outputs.version }}"
+          RELEASE_BRANCH="release/v${NEW_VERSION}"
+
+          git checkout -b "$RELEASE_BRANCH"
           git commit -am "chore(release): bump patch version to v${NEW_VERSION} [skip ci]"
+          git push -u origin "$RELEASE_BRANCH" --force
+
+          PR_URL=$(gh pr create \
+            --title "chore(release): bump patch version to v${NEW_VERSION} [skip ci]" \
+            --body "Automated weekly Dependabot release bump to v${NEW_VERSION}." \
+            --base main \
+            --head "$RELEASE_BRANCH")
+          echo "Created Release PR: $PR_URL"
+
+          # Merge the release PR into main
+          MERGED=false
+          for i in {1..5}; do
+            if gh pr merge "$PR_URL" --merge --delete-branch; then
+              echo "Release PR merged successfully."
+              MERGED=true
+              break
+            fi
+            echo "Waiting to retry PR merge..."
+            sleep 2
+          done
+
+          if [ "$MERGED" != "true" ]; then
+            echo "Failed to merge release PR $PR_URL"
+            exit 1
+          fi
+
+      - name: Create and push release tag
+        run: |
+          NEW_VERSION="${{ steps.bump.outputs.version }}"
+          git checkout main
+          git pull origin main
           git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION} - Automated weekly Dependabot release"
-          git push --atomic origin HEAD:main "refs/tags/v${NEW_VERSION}"
+          git push origin "refs/tags/v${NEW_VERSION}"
 
       - name: Create GitHub Release and Dispatch Publishing Workflows
         env:
