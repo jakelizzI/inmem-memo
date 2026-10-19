@@ -170,4 +170,7 @@ Cargo.lock
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
 
+# Release notes artifact
+release_notes.md
+
 # End of https://www.toptal.com/developers/gitignore/api/rust,react,node

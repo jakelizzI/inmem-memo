@@ -162,56 +162,8 @@ jobs:
         run: |
           NEW_VERSION="${{ steps.bump.outputs.version }}"
 
-          cat <<EOF > release_notes.md
-          # ⚡ inmem-memo v${NEW_VERSION} (Weekly Automated Maintenance Release)
-
-          [English](#english) | [日本語](#japanese)
-
-          ---
-
-          <a name="english"></a>
-          ## 🇬🇧 English
-
-          ### 🛠️ Maintenance & Automated Dependency Updates
-          - **Automated Dependabot Updates**:
-            - Synchronized latest compatible dependencies.
-          - **Verification & Stability**:
-            - All automated test suites (Vitest 10/10) and production builds passed with 100% success.
-
-          ### 🚀 Quick Start (npm / npx)
-          \`\`\`bash
-          # Launch instantly without installation
-          npx inmem-memo
-
-          # Global installation
-          npm install -g inmem-memo
-          inmem-memo
-          \`\`\`
-
-          ---
-
-          <a name="japanese"></a>
-          ## 🇯🇵 日本語
-
-          ### 🛠️ メンテナンス & 定期ライブラリ自動更新
-          - **定期 Dependabot 依存ライブラリ更新**:
-            - 互換性テストを通過した最新依存ライブラリを反映いたしました。
-          - **動作検証と品質保証**:
-            - 全自動スモーク＆ユニットテスト（10/10件）およびプロダクションビルドを 100% パスし、安定性を保証しています。
-
-          ### 🚀 インストール & 起動方法
-          \`\`\`bash
-          # 即時起動
-          npx inmem-memo
-
-          # グローバルインストール
-          npm install -g inmem-memo
-          inmem-memo
-          \`\`\`
-          EOF
-
-          # Remove leading indentation in markdown file
-          sed -i 's/^[ \t]*//' release_notes.md
+          echo "Generating rich bilingual release notes..."
+          node scripts/generate-release-notes.js "v${NEW_VERSION}"
 
           echo "Creating GitHub Release v${NEW_VERSION}..."
           gh release create "v${NEW_VERSION}" --title "inmem-memo v${NEW_VERSION}" --notes-file release_notes.md
