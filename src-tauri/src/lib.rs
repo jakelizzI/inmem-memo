@@ -148,6 +148,9 @@ fn exit_app(app: AppHandle) {
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+    // Save dialog for export; paths chosen in the dialog are added to the fs scope automatically
+    .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_fs::init())
     .manage(ActiveShortcut(Mutex::new(None)))
     .invoke_handler(tauri::generate_handler![update_global_shortcut, exit_app])
     .setup(|app| {
