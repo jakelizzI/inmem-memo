@@ -220,19 +220,79 @@ export default function App() {
     showToast('メモを消去しました (Ctrl+Zで復元可能)');
   };
 
-  const handleExport = () => {
+  /**
+   * Exports the current memo as a Markdown file, letting the user choose the destination.
+   *
+   * - Desktop (Tauri): opens a native save dialog and writes the file via the fs plugin.
+   * - Browser with File System Access API: opens the browser's save file picker.
+   * - Other browsers: falls back to a regular anchor download.
+   *
+   * Cancelling the dialog shows a toast and writes nothing.
+   *
+   * @returns {Promise<void>}
+   */
+  const handleExport = async () => {
     if (!text) {
       showToast('エクスポートする内容がありません');
       return;
     }
-    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `inmem_memo_${new Date().toISOString().slice(0, 10)}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Markdownファイルとしてエクスポートしました');
+    const defaultFileName = `inmem_memo_${new Date().toISOString().slice(0, 10)}.md`;
+
+    try {
+      // Desktop (Tauri): let the user choose the destination directory / file name
+      if (window.__TAURI_INTERNALS__ || window.__TAURI__) {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+        const filePath = await save({
+          title: 'エクスポート先を選択',
+          defaultPath: defaultFileName,
+          filters: [{ name: 'Markdown', extensions: ['md'] }],
+        });
+        if (!filePath) {
+          showToast('エクスポートをキャンセルしました');
+          return;
+        }
+        await writeTextFile(filePath, text);
+        showToast(`エクスポートしました: ${filePath}`);
+        return;
+      }
+
+      // Browser: use the File System Access API when available
+      if (typeof window.showSaveFilePicker === 'function') {
+        let handle;
+        try {
+          handle = await window.showSaveFilePicker({
+            suggestedName: defaultFileName,
+            types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+          });
+        } catch (err) {
+          if (err?.name === 'AbortError') {
+            showToast('エクスポートをキャンセルしました');
+            return;
+          }
+          throw err;
+        }
+        const writable = await handle.createWritable();
+        await writable.write(text);
+        await writable.close();
+        showToast(`エクスポートしました: ${handle.name}`);
+        return;
+      }
+
+      // Fallback: regular browser download
+      const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = defaultFileName;
+      a.click();
+      // Defer revocation so the browser can finish reading the blob before the URL is released
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+      showToast('Markdownファイルとしてエクスポートしました');
+    } catch (err) {
+      console.error('[inmem-memo] Export failed:', err);
+      showToast(`エクスポートに失敗しました: ${err?.message ?? err}`);
+    }
   };
 
   // Combine built-in actions with user's custom actions
