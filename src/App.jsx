@@ -220,6 +220,17 @@ export default function App() {
     showToast('メモを消去しました (Ctrl+Zで復元可能)');
   };
 
+  /**
+   * Exports the current memo as a Markdown file, letting the user choose the destination.
+   *
+   * - Desktop (Tauri): opens a native save dialog and writes the file via the fs plugin.
+   * - Browser with File System Access API: opens the browser's save file picker.
+   * - Other browsers: falls back to a regular anchor download.
+   *
+   * Cancelling the dialog shows a toast and writes nothing.
+   *
+   * @returns {Promise<void>}
+   */
   const handleExport = async () => {
     if (!text) {
       showToast('エクスポートする内容がありません');
@@ -275,7 +286,8 @@ export default function App() {
       a.href = url;
       a.download = defaultFileName;
       a.click();
-      URL.revokeObjectURL(url);
+      // Defer revocation so the browser can finish reading the blob before the URL is released
+      setTimeout(() => URL.revokeObjectURL(url), 0);
       showToast('Markdownファイルとしてエクスポートしました');
     } catch (err) {
       console.error('[inmem-memo] Export failed:', err);
