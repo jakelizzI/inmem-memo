@@ -44,7 +44,6 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'inmem-memo ${{ github.ref_name }}'
-          releaseBody: 'Ultra-Fast In-Memory Scratchpad Memo Application for Windows, macOS, and Linux.'
           releaseDraft: false
           prerelease: false
 
