@@ -1,6 +1,6 @@
 [package]
 name = "inmem-memo"
-version = "1.4.1"
+version = "1.4.2"
 description = "Ultra-Fast In-Memory Scratchpad Memo App"
 authors = ["Antigravity"]
 edition = "2021"
